@@ -8,6 +8,7 @@ import dotenv from 'dotenv';
 import { errorHandler } from './middleware/errorHandler';
 import { notFoundHandler } from './middleware/notFoundHandler';
 import { rateLimiter } from './middleware/rateLimiter';
+import { analyticsMiddleware } from './middleware/analytics.middleware';
 import logger from './utils/logger';
 
 // Import routes
@@ -16,6 +17,7 @@ import userRoutes from './routes/user.routes';
 import chatRoutes from './routes/chat.routes';
 import gifRoutes from './routes/gif.routes';
 import notificationRoutes from './routes/notification.routes';
+import friendRoutes from './routes/friend.routes';
 import healthRoutes from './routes/health.routes';
 
 // Load environment variables
@@ -66,6 +68,11 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // ============================================
+// Analytics Middleware
+// ============================================
+app.use(analyticsMiddleware);
+
+// ============================================
 // Rate Limiting
 // ============================================
 app.use(`/api/${API_VERSION}`, rateLimiter);
@@ -79,6 +86,7 @@ app.use(`/api/${API_VERSION}/users`, userRoutes);
 app.use(`/api/${API_VERSION}/chats`, chatRoutes);
 app.use(`/api/${API_VERSION}/gifs`, gifRoutes);
 app.use(`/api/${API_VERSION}/notifications`, notificationRoutes);
+app.use(`/api/${API_VERSION}/friends`, friendRoutes);
 
 // ============================================
 // Error Handling
@@ -94,6 +102,10 @@ const server = app.listen(PORT, () => {
   logger.info(`📊 Environment: ${process.env.NODE_ENV}`);
   logger.info(`🔗 API Base URL: /api/${API_VERSION}`);
   logger.info(`🗄️  Supabase: ${process.env.SUPABASE_URL}`);
+  logger.info(`🔔 FCM: ${process.env.FCM_PROJECT_ID ? 'Configured' : 'Not configured'}`);
+  logger.info(`🎨 GIPHY: ${process.env.GIPHY_API_KEY ? 'Configured' : 'Not configured'}`);
+  logger.info(`🎭 Tenor: ${process.env.TENOR_API_KEY ? 'Configured' : 'Not configured'}`);
+  logger.info(`📈 PostHog: ${process.env.POSTHOG_API_KEY ? 'Configured' : 'Not configured'}`);
 });
 
 // Graceful shutdown
@@ -111,6 +123,17 @@ process.on('SIGINT', () => {
     logger.info('HTTP server closed');
     process.exit(0);
   });
+});
+
+// Handle uncaught errors
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught Exception:', error);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
 });
 
 export default app;
