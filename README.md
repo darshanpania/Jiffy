@@ -1,6 +1,6 @@
 # 🎬 JIFFY - GIF Messenger
 
-> Express yourself better with GIFs! A modern messaging app with Android client and Node.js backend.
+> Express yourself better with GIFs! A modern Android messaging app built with Kotlin, Jetpack Compose, Supabase, and a Node.js backend.
 
 [![Android](https://img.shields.io/badge/Platform-Android-green.svg)](https://developer.android.com)
 [![Kotlin](https://img.shields.io/badge/Language-Kotlin-blue.svg)](https://kotlinlang.org)
@@ -13,54 +13,74 @@
 
 ## 📱 Overview
 
-JIFFY is a next-generation GIF-powered messaging application with a **modern Android client** and **Node.js/Express backend**. Built with Kotlin, Jetpack Compose, Supabase, and deployed on Railway for scalability.
+JIFFY is a next-generation GIF-powered messaging application that makes conversations more fun and expressive. Built with modern Android development practices and a scalable Node.js backend deployed on Railway.
 
 ### ✨ Key Features
 
 - 🔐 **Secure Authentication** - Google and Apple Sign-In via Supabase Auth
-- 💬 **Real-Time Messaging** - Instant delivery using Supabase Realtime
-- 🎨 **Dual GIF Sources** - Search from both GIPHY and Tenor
-- 👥 **Group Chats** - Create groups with up to 100 members
-- 📱 **Social Sharing** - Share to Facebook, Twitter, and Instagram
-- 🔔 **Push Notifications** - Firebase Cloud Messaging integration
-- 📊 **Analytics** - PostHog for user insights
-- 🌐 **Backend API** - Node.js/Express on Railway
-- ⚡ **High Performance** - Optimized for speed and reliability
+- 💬 **Real-Time Messaging** - Instant message delivery using Supabase Realtime
+- 🎨 **Dual GIF Sources** - Search and share GIFs from both GIPHY and Tenor
+- 👥 **Group Chats** - Create and manage group conversations (up to 100 members)
+- 📱 **Social Sharing** - Share GIFs directly to Facebook, Twitter, and Instagram
+- 🔔 **Push Notifications** - Firebase Cloud Messaging for instant alerts
+- 📊 **Analytics** - PostHog integration for user insights
+- 🌐 **Offline Support** - Queue messages when offline, sync when online
+- 🎯 **Friend System** - Discover, add, and manage friends
+- ⚡ **High Performance** - Built with Jetpack Compose and optimized backend
 
 ---
 
-## 🏗️ Tech Stack
+## 🏗️ Architecture
 
-### Frontend (Android)
+### System Overview
+
+```
+┌──────────────────────┐
+│   Android App        │
+│   (Kotlin/Compose)   │
+└──────────┬───────────┘
+           │
+    ┌──────┴──────┐
+    ↓             ↓
+┌─────────┐  ┌──────────────┐
+│ Backend │  │   Supabase   │
+│ Node.js │  │  (Direct)    │
+│ Railway │  │  • Realtime  │
+│         │  │  • Storage   │
+│ • APIs  │  │  • Auth      │
+│ • FCM   │  │  • Database  │
+└─────────┘  └──────────────┘
+```
+
+### Tech Stack
+
+#### **Frontend (Android)**
 - **Language:** Kotlin 1.9.22
-- **UI:** Jetpack Compose with Material 3
+- **UI:** Jetpack Compose + Material 3
 - **Architecture:** Clean Architecture (MVVM)
 - **DI:** Hilt
 - **Local DB:** Room
 - **Image Loading:** Coil (GIF support)
 - **Min SDK:** 24 | **Target SDK:** 34
 
-### Backend (Node.js)
+#### **Backend (Node.js)**
 - **Runtime:** Node.js 18+
-- **Framework:** Express + TypeScript
-- **Architecture:** Layered (Routes → Services → DB)
-- **Deployment:** Railway with Docker
+- **Framework:** Express.js
+- **Language:** JavaScript (ES6+)
 - **Logging:** Winston
-- **Validation:** Joi
+- **Caching:** node-cache
+- **Testing:** Jest
+- **Deployment:** Railway (Docker)
 
-### Backend & Services
-- **Database:** Supabase PostgreSQL (12 tables with RLS)
-- **Authentication:** Supabase Auth (OAuth - Google/Apple only)
-- **Real-time:** Supabase Realtime (WebSocket)
-- **Storage:** Supabase Storage (CDN)
+#### **Services & APIs**
+- **Database:** Supabase PostgreSQL
+- **Authentication:** Supabase Auth (Google & Apple)
+- **Real-time:** Supabase Realtime
+- **Storage:** Supabase Storage
 - **Push Notifications:** Firebase Cloud Messaging (FCM ONLY)
 - **Analytics:** PostHog
+- **GIF APIs:** GIPHY SDK + Tenor API
 - **Deployment:** Railway
-
-### APIs & Integrations
-- **GIF Sources:** GIPHY SDK + Tenor API
-- **Social Media:** Facebook, Twitter, Instagram SDKs
-- **Networking:** Retrofit (Android) + Axios (Backend)
 
 ---
 
@@ -68,193 +88,182 @@ JIFFY is a next-generation GIF-powered messaging application with a **modern And
 
 ```
 jiffy/
-├── app/                          # Android application
-│   ├── src/main/java/com/darshan/jiffy/
-│   │   ├── data/                # Data layer
-│   │   ├── domain/              # Business logic
-│   │   ├── presentation/        # UI (Compose)
-│   │   └── di/                  # Dependency injection
+├── app/                    # Android app
+│   ├── src/main/
+│   │   ├── java/com/darshan/jiffy/
+│   │   │   ├── data/
+│   │   │   ├── domain/
+│   │   │   ├── presentation/
+│   │   │   └── di/
+│   │   └── res/
 │   └── build.gradle.kts
 │
-├── backend/                      # Node.js/Express API
+├── backend/                # Node.js backend
 │   ├── src/
-│   │   ├── config/              # Supabase, Firebase config
-│   │   ├── middleware/          # Auth, validation, rate limiting
-│   │   ├── routes/              # API endpoints
-│   │   ├── services/            # Business logic
-│   │   ├── types/               # TypeScript types
-│   │   ├── utils/               # Logger, helpers
-│   │   └── server.ts            # Main entry point
-│   ├── Dockerfile               # Docker configuration
-│   ├── railway.json             # Railway config
-│   └── package.json             # Dependencies
+│   │   ├── config/        # Configuration
+│   │   ├── controllers/   # Request handlers
+│   │   ├── middleware/    # Express middleware
+│   │   ├── routes/        # API routes
+│   │   ├── services/      # Business logic
+│   │   ├── utils/         # Utilities
+│   │   └── server.js      # Main server
+│   ├── tests/             # Backend tests
+│   ├── scripts/           # Deployment scripts
+│   ├── Dockerfile
+│   ├── railway.json
+│   ├── package.json
+│   └── README.md          # Backend docs
 │
-├── database/                     # Database schema
-│   └── schema.sql               # Complete PostgreSQL schema
+├── database/
+│   └── schema.sql         # Supabase PostgreSQL schema
 │
-└── docs/                         # Documentation
-    ├── SETUP.md                 # Setup guide
-    ├── QUICKSTART.md            # Quick start
-    ├── TECH_STACK.md            # Technology details
-    └── ROADMAP.md               # Development roadmap
+├── .github/
+│   ├── workflows/
+│   │   └── backend-ci.yml # Backend CI/CD
+│   └── ISSUE_TEMPLATE/
+│
+├── README.md              # This file
+├── TECH_STACK.md
+├── SETUP.md
+├── BACKEND_INTEGRATION.md
+└── LICENSE
 ```
 
 ---
 
 ## 🚀 Getting Started
 
-### Quick Start (10 Minutes)
+### Prerequisites
 
-**1. Clone Repository:**
+**For Android Development:**
+- Android Studio Hedgehog (2023.1.1+)
+- JDK 17+
+- Android SDK (API 24-34)
+
+**For Backend Development:**
+- Node.js 18+
+- npm 9+
+
+**Required Accounts:**
+- Supabase account
+- Firebase account (FCM)
+- GIPHY developer account
+- Google Cloud (Tenor API)
+- PostHog account
+- Railway account
+
+### Quick Start
+
+#### Android App
+
 ```bash
+# Clone repository
 git clone https://github.com/darshanpania/jiffy.git
 cd jiffy
-```
 
-**2. Setup Android App:**
-```bash
-# Copy config template
+# Configure Android
 cp local.properties.example local.properties
+# Edit local.properties with API keys
 
-# Edit with your API keys
-# Then open in Android Studio
+# Build
+./gradlew assembleDebug
 ```
 
-**3. Setup Backend:**
+#### Backend
+
 ```bash
+# Navigate to backend
 cd backend
 
 # Install dependencies
 npm install
 
-# Copy environment file
+# Configure environment
 cp .env.example .env
+# Edit .env with credentials
 
-# Edit with your credentials
-# Then start server
+# Run development server
 npm run dev
+
+# Server starts at http://localhost:3000
 ```
 
-**4. Setup Supabase:**
-- Create project at [Supabase](https://supabase.com)
-- Run `database/schema.sql` in SQL Editor
-- Copy URL and keys to configs
+### Full Setup Guide
 
-**5. Run!**
-- Android: Open in Android Studio → Run
-- Backend: `npm run dev` (runs on http://localhost:3000)
-
-📖 **Detailed Guide:** See [SETUP.md](SETUP.md)
+See [SETUP.md](SETUP.md) for complete setup instructions.
 
 ---
 
-## 🌐 Backend API
+## 🔗 Backend Integration
 
-### Base URL
-- **Development:** `http://localhost:3000`
-- **Production:** `https://your-app.railway.app`
+### When to Use Backend vs Supabase Direct
 
-### Key Endpoints
+**Use Backend API:**
+- 🎨 GIF search (GIPHY/Tenor) - caching + security
+- 🔔 Push notifications (FCM) - token management
+- 📊 Analytics aggregation (future)
 
-```http
-# Health Check
-GET /health
+**Use Supabase Direct:**
+- 💬 Real-time messaging - WebSocket efficiency
+- 💾 Database CRUD - RLS security
+- 📁 File uploads - Direct to Storage
+- 🔐 Authentication - OAuth flows
 
-# Authentication
-POST /api/v1/auth/verify
-POST /api/v1/auth/register-fcm-token
-
-# Users
-GET  /api/v1/users/me
-PUT  /api/v1/users/me
-GET  /api/v1/users/search?q=query
-
-# Chats
-GET  /api/v1/chats
-POST /api/v1/chats/direct
-POST /api/v1/chats/:chatId/messages
-GET  /api/v1/chats/:chatId/messages
-
-# GIFs
-GET  /api/v1/gifs/search/giphy?q=cat
-GET  /api/v1/gifs/search/tenor?q=dog
-GET  /api/v1/gifs/trending/giphy
-POST /api/v1/gifs/favorites
-
-# Friends
-POST /api/v1/friends/requests
-GET  /api/v1/friends/requests/pending
-PUT  /api/v1/friends/requests/:id/accept
-
-# Notifications
-POST /api/v1/notifications/test
-```
-
-📖 **Full API Docs:** [backend/API.md](backend/API.md)
+See [BACKEND_INTEGRATION.md](BACKEND_INTEGRATION.md) for details.
 
 ---
 
-## 🗄️ Database (Supabase PostgreSQL)
+## 📡 API Endpoints
 
-### Tables (12 total)
+**Backend provides RESTful API:**
 
-**Phase 1:**
-1. `profiles` - User data
+- **Auth:** `/api/auth/*`
+- **Users:** `/api/users/*`
+- **Chats:** `/api/chats/*`
+- **GIFs:** `/api/gifs/*`
+- **Notifications:** `/api/notifications/*`
+
+**Full API documentation:** [backend/API.md](backend/API.md)
+
+---
+
+## 🗄️ Database
+
+**Supabase PostgreSQL (12 Tables):**
+
+1. `profiles` - User profiles
 2. `friendships` - Friend relationships
 3. `friend_requests` - Friend requests
 4. `chat_rooms` - Chat metadata
-5. `chat_participants` - Chat members
+5. `chat_participants` - Chat membership
 6. `messages` - All messages
 7. `favorite_gifs` - Saved GIFs
 8. `user_devices` - FCM tokens
-
-**Phase 2:**
 9. `group_settings` - Group config
-10. `group_invites` - Group invites
+10. `group_invites` - Group invitations
 11. `message_reads` - Read receipts
-12. `chat_notification_preferences` - Notification prefs
+12. `chat_notification_preferences` - Notification settings
 
 **All protected by Row Level Security (RLS)**
 
----
-
-## 🔐 Security
-
-### Authentication
-- Supabase Auth with Google/Apple OAuth
-- JWT token validation
-- No password storage
-
-### Data Security
-- Row Level Security on all tables
-- HTTPS/TLS encryption
-- Secure token storage
-- API key protection
-
-### Backend Security
-- Helmet security headers
-- CORS configuration
-- Rate limiting
-- Input validation
-- Error sanitization
+Schema: [database/schema.sql](database/schema.sql)
 
 ---
 
-## 📊 Analytics (PostHog)
+## 🚀 Deployment
 
-### Tracked Events
-- Authentication flows
-- Message activity
-- GIF usage
-- Friend interactions
-- API requests
-- Error occurrences
+### Android App
+- **Build:** `./gradlew assembleRelease`
+- **Distribution:** Google Play Store
+- **Signing:** Configure in `app/build.gradle.kts`
 
-### Privacy
-- No message content tracked
-- User IDs hashed
-- GDPR compliant
-- Opt-out available
+### Backend
+- **Platform:** Railway
+- **Method:** Docker (Dockerfile)
+- **Deploy:** `railway up` or GitHub push
+- **URL:** `https://your-app.railway.app`
+
+**Deployment guide:** [backend/DEPLOYMENT.md](backend/DEPLOYMENT.md)
 
 ---
 
@@ -262,126 +271,172 @@ POST /api/v1/notifications/test
 
 ### Android Tests
 ```bash
-./gradlew test                    # Unit tests
-./gradlew connectedAndroidTest    # UI tests
+# Unit tests
+./gradlew test
+
+# UI tests
+./gradlew connectedAndroidTest
 ```
 
 ### Backend Tests
 ```bash
 cd backend
-npm test                          # All tests
-npm run test:watch                # Watch mode
+
+# Run tests
+npm test
+
+# With coverage
+npm test -- --coverage
 ```
-
-### Target Coverage
-- Android: 80%+
-- Backend: 85%+
-
----
-
-## 🚢 Deployment
-
-### Backend (Railway)
-
-```bash
-cd backend
-railway login
-railway init
-railway up
-```
-
-See: [backend/DEPLOYMENT.md](backend/DEPLOYMENT.md)
-
-### Android (Google Play)
-
-1. Generate signed AAB
-2. Upload to Play Console
-3. Follow release process
 
 ---
 
 ## 📚 Documentation
 
 ### For Developers
-- [📖 README](README.md) - This file
-- [⚡ Quick Start](QUICKSTART.md) - Get running fast
-- [🔧 Setup Guide](SETUP.md) - Detailed setup
-- [🛠️ Tech Stack](TECH_STACK.md) - Technology details
-- [🗺️ Roadmap](ROADMAP.md) - Development plan
-- [🤝 Contributing](CONTRIBUTING.md) - How to contribute
+- [README.md](README.md) - This file
+- [TECH_STACK.md](TECH_STACK.md) - Complete tech stack
+- [SETUP.md](SETUP.md) - Detailed setup guide
+- [QUICKSTART.md](QUICKSTART.md) - Quick start (10 min)
+- [BACKEND_INTEGRATION.md](BACKEND_INTEGRATION.md) - Backend integration
 
-### For Backend
-- [🌐 Backend README](backend/README.md) - Backend overview
-- [📡 API Docs](backend/API.md) - API reference
-- [🏗️ Architecture](backend/ARCHITECTURE.md) - System design
-- [🚀 Deployment](backend/DEPLOYMENT.md) - Deploy guide
+### Backend Specific
+- [backend/README.md](backend/README.md) - Backend overview
+- [backend/API.md](backend/API.md) - API documentation
+- [backend/DEPLOYMENT.md](backend/DEPLOYMENT.md) - Deployment guide
+- [backend/ARCHITECTURE.md](backend/ARCHITECTURE.md) - Architecture
+- [backend/GETTING_STARTED.md](backend/GETTING_STARTED.md) - Quick start
 
-### For Database
-- [🗄️ Schema](database/schema.sql) - Complete schema
-- [📊 ERD](docs/database-erd.png) - Entity relationship diagram (TBD)
-
----
-
-## 🎯 Project Goals
-
-### Technical Excellence
-- ✅ Modern tech stack (Kotlin, Compose, Supabase, Node.js)
-- ✅ Clean architecture
-- ✅ 80%+ test coverage
-- ✅ High performance
-- ✅ Security-first approach
-
-### User Experience
-- ✅ Intuitive Material 3 UI
-- ✅ Fast real-time messaging
-- ✅ Seamless GIF integration
-- ✅ Reliable notifications
-- ✅ Smooth animations
-
-### Business Goals
-- ✅ 1,000+ downloads Week 1
-- ✅ 4.0+ star rating
-- ✅ 40%+ D1 retention
-- ✅ Scalable infrastructure
-- ✅ Clear growth path
+### Contributing
+- [CONTRIBUTING.md](CONTRIBUTING.md) - How to contribute
+- [ROADMAP.md](ROADMAP.md) - Development roadmap
 
 ---
 
-## 📈 Current Status
+## 🎯 Roadmap
 
-| Component | Status |
-|-----------|--------|
-| **Android App** | 🟡 In Development |
-| **Backend API** | 🟢 Ready |
-| **Database** | 🟢 Schema Complete |
-| **Deployment** | 🟢 Railway Configured |
-| **Documentation** | 🟢 Comprehensive |
-| **Tests** | 🟡 In Progress |
+### Phase 1: MVP Core (Weeks 1-8) ✅ Planned
+- Authentication (Google/Apple)
+- User profiles
+- Friend system
+- One-on-one chat
+- GIF integration (GIPHY + Tenor)
+
+### Phase 2: Enhanced Features (Weeks 9-12) ✅ Planned
+- Group chats (100 members)
+- Social media sharing
+- Read receipts
+- Enhanced notifications
+
+### Phase 3: Polish & Release (Weeks 13-16) ✅ Planned
+- Comprehensive testing
+- Load testing
+- Security audit
+- Beta testing
+- Production launch
+
+**Track progress:** [Issue #49 - Master Roadmap](https://github.com/darshanpania/jiffy/issues/49)
 
 ---
 
-## 📞 Support & Community
+## 🔐 Security & Privacy
+
+### Security Features
+- ✅ Supabase Row Level Security (RLS)
+- ✅ JWT authentication
+- ✅ OAuth 2.0 (Google/Apple)
+- ✅ Encrypted token storage
+- ✅ ProGuard/R8 obfuscation
+- ✅ HTTPS only
+- ✅ Backend rate limiting
+
+### Privacy
+- ✅ GDPR compliant
+- ✅ No password storage (OAuth only)
+- ✅ PostHog privacy-focused
+- ✅ No message content in analytics
+- ✅ User data control
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+```bash
+# Fork and clone
+git clone https://github.com/YOUR_USERNAME/jiffy.git
+
+# Create feature branch
+git checkout -b feature/amazing-feature
+
+# Commit changes
+git commit -m 'feat: add amazing feature'
+
+# Push and create PR
+git push origin feature/amazing-feature
+```
+
+---
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE)
+
+---
+
+## 👥 Team
+
+**Project Lead:** Darshan Pania  
+**GitHub:** [@darshanpania](https://github.com/darshanpania)  
+**Email:** dev@jiffy.app
+
+---
+
+## 🙏 Acknowledgments
+
+- [Supabase](https://supabase.com) - Backend infrastructure
+- [Railway](https://railway.app) - Deployment platform
+- [GIPHY](https://giphy.com) - GIF content
+- [Tenor](https://tenor.com) - GIF content
+- [PostHog](https://posthog.com) - Analytics
+- [Firebase](https://firebase.google.com) - Cloud messaging
+- [Jetpack Compose](https://developer.android.com/jetpack/compose) - UI toolkit
+
+---
+
+## 📞 Support
 
 - **Issues:** [GitHub Issues](https://github.com/darshanpania/jiffy/issues)
-- **Discussions:** [GitHub Discussions](https://github.com/darshanpania/jiffy/discussions)
-- **Email:** dev@jiffy.app
-- **Twitter:** [@jiffyapp](https://twitter.com/jiffyapp)
+- **Email:** support@jiffy.app
+- **Documentation:** [Wiki](https://github.com/darshanpania/jiffy/wiki)
 
 ---
 
-## 🎉 Quick Links
+## 🌟 Quick Links
 
-- [🚀 Get Started](QUICKSTART.md)
-- [📋 View Issues](https://github.com/darshanpania/jiffy/issues)
-- [📊 Phase 1 Tracker](https://github.com/darshanpania/jiffy/issues/37)
-- [🗺️ Master Roadmap](https://github.com/darshanpania/jiffy/issues/49)
+### Android
+- [Android Setup](SETUP.md)
+- [Quick Start](QUICKSTART.md)
+- [Tech Stack](TECH_STACK.md)
+
+### Backend
+- [Backend README](backend/README.md)
+- [API Docs](backend/API.md)
+- [Deploy Guide](backend/DEPLOYMENT.md)
+- [Architecture](backend/ARCHITECTURE.md)
+
+### Project
+- [Roadmap](ROADMAP.md)
+- [All Issues](https://github.com/darshanpania/jiffy/issues)
+- [Phase 1 Tracker](https://github.com/darshanpania/jiffy/issues/37)
 
 ---
 
-<div align="center">
+<div align=\"center\">
 
-**Made with ❤️ using Kotlin • Supabase • Node.js • Jetpack Compose**
+**Made with ❤️ using Kotlin, Node.js, and Supabase**
 
-**[⭐ Star this repo](https://github.com/darshanpania/jiffy) | [👀 Watch updates](https://github.com/darshanpania/jiffy/subscription) | [🍴 Fork it](https://github.com/darshanpania/jiffy/fork)**
+[Website](https://jiffy.app) • [Twitter](https://twitter.com/jiffyapp) • [Instagram](https://instagram.com/jiffyapp)
 
 </div>
