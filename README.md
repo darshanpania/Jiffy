@@ -1,242 +1,356 @@
-# 🎉 JIFFY - GIF-Powered Chat Application
+# JIFFY 🎬
+### A GIF-Powered Chat Application for Fun and Expressive Conversations
 
-[![Android](https://img.shields.io/badge/Platform-Android-green.svg)](https://developer.android.com/)
-[![API](https://img.shields.io/badge/API-21%2B-brightgreen.svg?style=flat)](https://android-arsenal.com/api?level=21)
-[![Firebase](https://img.shields.io/badge/Firebase-Realtime%20DB-orange.svg)](https://firebase.google.com/)
+JIFFY is a modern Android messaging application that makes conversations more fun and expressive through seamless GIF integration. Express yourself better with animated reactions, powered by Giphy's extensive library.
 
-**JIFFY** is an Android chat application that brings conversations to life with GIFs! Express yourself beyond words with an intuitive, fun, and expressive messaging experience powered by animated GIFs.
+---
 
-## 📱 Project Overview
+## 📋 Table of Contents
+- [Overview](#overview)
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Architecture](#architecture)
+- [Project Structure](#project-structure)
+- [Setup Instructions](#setup-instructions)
+- [Development Roadmap](#development-roadmap)
+- [Contributing](#contributing)
+- [License](#license)
 
-JIFFY transforms traditional text messaging into a vibrant, visual experience. Users can communicate using GIFs, making conversations more engaging, emotional, and fun. The app leverages Firebase for real-time messaging and Google Sign-In for seamless authentication.
+---
 
-### ✨ Key Features
+## 🎯 Overview
 
-- 🔐 **Google Sign-In Authentication** - Quick and secure login
-- 💬 **Real-time Messaging** - Instant message delivery with Firebase Realtime Database
-- 🎨 **GIF Integration** - Browse and share GIFs from popular providers
-- 👥 **User Profiles** - Personalized user experience
-- ⚡ **Fast & Responsive** - Optimized for smooth performance
-- 🎯 **Material Design** - Modern and intuitive UI/UX
+JIFFY transforms traditional messaging by putting GIFs at the center of your conversations. Whether you're chatting one-on-one or in groups, JIFFY makes it easy to find and share the perfect animated response from Giphy's vast collection.
 
-## 🛠️ Tech Stack
+### Key Highlights
+- 💬 Real-time messaging with WebSocket support
+- 🎨 Seamless Giphy integration for instant GIF search
+- 👥 Friend system with discovery and management
+- 🔔 Push notifications for instant updates
+- 🔐 Secure authentication with Firebase
+- 📱 Modern Material Design UI
+- 🌐 Social media sharing capabilities
 
-### Core Technologies
-- **Language:** Java
-- **Platform:** Android (API 21+)
-- **IDE:** Android Studio
+---
 
-### Architecture & Libraries
-- **Architecture Pattern:** MVC/MVVM (evolving)
-- **UI Framework:** AndroidX, Material Components
-- **Backend:** Firebase
-  - Firebase Authentication
-  - Firebase Realtime Database
-- **Authentication:** Google Play Services Auth
-- **Build System:** Gradle
+## ✨ Features
 
-### Key Dependencies
-```gradle
-- AndroidX AppCompat 1.1.0
-- ConstraintLayout 1.1.3
-- Firebase Auth 19.3.0
-- Firebase Realtime Database 19.3.0
-- Google Play Services Auth 18.0.0
+### Phase 1: MVP Core (Weeks 1-8)
+- **User Authentication & Profiles**
+  - Email/password and Google Sign-In via Firebase
+  - User profile management with avatar upload
+  - Profile editing and settings
+
+- **Friend System**
+  - Friend discovery and search
+  - Send/accept/decline friend requests
+  - Friend list management
+
+- **Basic Chat & GIF Integration**
+  - One-on-one messaging
+  - Real-time message delivery
+  - Giphy API integration for GIF search
+  - Image and GIF sharing
+  - Message history with pagination
+
+### Phase 2: Enhanced Features (Weeks 9-12)
+- **Social Media Integration**
+  - Share GIFs/conversations to Facebook
+  - Share to Twitter
+  - Share to Instagram Stories
+
+- **Group Chat**
+  - Create and manage group conversations
+  - Group member management
+  - Group settings and customization
+
+- **Advanced Messaging**
+  - Read receipts and delivery status
+  - Typing indicators
+  - Push notifications (FCM)
+  - Message search functionality
+
+### Phase 3: Polish & Release (Weeks 13-16)
+- **Testing & Quality Assurance**
+  - Comprehensive unit and integration testing
+  - UI/UX testing
+  - Load testing and performance optimization
+  - Security audit
+
+- **Beta & Production Release**
+  - Beta testing program
+  - Bug fixes and refinements
+  - Play Store optimization
+  - Production deployment
+
+---
+
+## 🛠 Tech Stack
+
+### Frontend (Android)
+- **Language:** Java/Kotlin
+- **UI Framework:** Android SDK with Material Design Components
+- **Architecture:** MVVM (Model-View-ViewModel)
+- **Image Loading:** Glide
+- **Networking:** Retrofit + OkHttp
+- **Real-time:** Socket.IO / WebSocket
+- **Dependency Injection:** Dagger 2 / Hilt
+
+### Backend
+- **Framework:** Node.js with Express.js
+- **Database:** MongoDB (user data, messages)
+- **Cache:** Redis (sessions, online status)
+- **File Storage:** AWS S3 / Firebase Storage
+- **Authentication:** Firebase Auth
+- **Real-time:** Socket.IO
+- **Push Notifications:** Firebase Cloud Messaging (FCM)
+
+### Third-Party APIs
+- **Giphy API:** GIF search and delivery
+- **Firebase:** Authentication, Cloud Messaging, Storage
+- **Social Media SDKs:** Facebook, Twitter, Instagram APIs
+
+### DevOps & Tools
+- **Version Control:** Git + GitHub
+- **CI/CD:** GitHub Actions
+- **Deployment:** AWS / Google Cloud / Heroku
+- **Monitoring:** Firebase Analytics, Crashlytics
+- **Testing:** JUnit, Espresso, Mockito
+
+---
+
+## 🏗 Architecture
+
+### Android Application Architecture
+
+```
+┌─────────────────────────────────────────┐
+│           Presentation Layer            │
+│  (Activities, Fragments, ViewModels)    │
+└────────────────┬────────────────────────┘
+                 │
+┌────────────────▼────────────────────────┐
+│           Domain Layer                  │
+│     (Use Cases, Business Logic)         │
+└────────────────┬────────────────────────┘
+                 │
+┌────────────────▼────────────────────────┐
+│            Data Layer                   │
+│  (Repositories, Data Sources, Models)   │
+└────────────────┬────────────────────────┘
+                 │
+        ┌────────┴────────┐
+        ▼                 ▼
+┌──────────────┐  ┌──────────────┐
+│   Remote     │  │    Local     │
+│ Data Source  │  │ Data Source  │
+│   (API)      │  │   (Room DB)  │
+└──────────────┘  └──────────────┘
 ```
 
-## 🏗️ Project Architecture
+### Backend Architecture
+
+```
+┌──────────────┐     ┌──────────────┐
+│   Android    │◄───►│  API Gateway │
+│   Client     │     │   (Express)  │
+└──────────────┘     └───────┬──────┘
+                             │
+                  ┌──────────┼──────────┐
+                  ▼          ▼          ▼
+            ┌─────────┐ ┌────────┐ ┌────────┐
+            │  Auth   │ │  Chat  │ │  User  │
+            │ Service │ │Service │ │Service │
+            └────┬────┘ └───┬────┘ └───┬────┘
+                 │          │          │
+                 └──────────┼──────────┘
+                            ▼
+                  ┌──────────────────┐
+                  │    MongoDB       │
+                  │ + Redis Cache    │
+                  └──────────────────┘
+```
+
+---
+
+## 📁 Project Structure
 
 ```
 jiffy/
 ├── app/
 │   ├── src/
 │   │   ├── main/
-│   │   │   ├── java/com/darshan/jiffy/
-│   │   │   │   ├── activities/          # Activity classes
-│   │   │   │   ├── models/              # Data models
-│   │   │   │   ├── adapters/            # RecyclerView adapters
-│   │   │   │   ├── utils/               # Utility classes
-│   │   │   │   └── interfaces/          # Interface definitions
-│   │   │   ├── res/
-│   │   │   │   ├── layout/              # XML layouts
-│   │   │   │   ├── drawable/            # Images & drawables
-│   │   │   │   ├── values/              # Strings, colors, styles
-│   │   │   │   └── mipmap/              # App icons
+│   │   │   ├── java/com/jiffy/
+│   │   │   │   ├── data/          # Data layer
+│   │   │   │   │   ├── model/     # Data models
+│   │   │   │   │   ├── repository/# Repositories
+│   │   │   │   │   ├── remote/    # API services
+│   │   │   │   │   └── local/     # Local database
+│   │   │   │   ├── domain/        # Business logic
+│   │   │   │   │   └── usecase/   # Use cases
+│   │   │   │   ├── presentation/  # UI layer
+│   │   │   │   │   ├── auth/      # Authentication screens
+│   │   │   │   │   ├── chat/      # Chat screens
+│   │   │   │   │   ├── profile/   # Profile screens
+│   │   │   │   │   └── friends/   # Friends management
+│   │   │   │   ├── di/            # Dependency injection
+│   │   │   │   └── util/          # Utilities
+│   │   │   ├── res/               # Resources
 │   │   │   └── AndroidManifest.xml
-│   │   ├── test/                        # Unit tests
-│   │   └── androidTest/                 # Instrumentation tests
-│   ├── build.gradle                     # App-level Gradle
-│   └── google-services.json             # Firebase config (not in repo)
-├── build.gradle                         # Project-level Gradle
-├── gradle.properties
+│   │   └── test/                  # Unit tests
+│   └── build.gradle
+├── build.gradle
 ├── settings.gradle
 └── README.md
 ```
 
-### Architecture Patterns
-- **Current:** Basic MVC structure
-- **Planned Migration:** MVVM with Repository pattern for better separation of concerns
+### Recommended Improvements
+1. **Migrate to Kotlin** - Modern Android development standard
+2. **Implement Clean Architecture** - Separate concerns with clear layers
+3. **Add Room Database** - Local caching for offline support
+4. **Setup Hilt/Dagger** - Dependency injection framework
+5. **Add Jetpack Components** - Navigation, LiveData, ViewModel
+6. **Setup CI/CD** - Automated testing and deployment
+7. **Add Crashlytics** - Error tracking and monitoring
 
-## 🚀 Getting Started
+---
+
+## 🚀 Setup Instructions
 
 ### Prerequisites
-- Android Studio Arctic Fox or newer
-- JDK 8 or higher
-- Android SDK (API 28+)
+- Android Studio Arctic Fox or later
+- JDK 11 or later
+- Android SDK (API 21+)
 - Firebase account
-- Google Cloud Console project (for Google Sign-In)
+- Giphy API key
 
-### Setup Instructions
+### Installation Steps
 
-#### 1. Clone the Repository
-```bash
-git clone https://github.com/darshanpania/jiffy.git
-cd jiffy
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/darshanpania/jiffy.git
+   cd jiffy
+   ```
+
+2. **Configure Firebase**
+   - Create a new Firebase project at [Firebase Console](https://console.firebase.google.com)
+   - Download `google-services.json`
+   - Place it in `app/` directory
+   - Enable Authentication (Email/Password, Google Sign-In)
+   - Enable Cloud Firestore
+   - Enable Cloud Storage
+   - Enable Cloud Messaging (FCM)
+
+3. **Configure Giphy API**
+   - Get your API key from [Giphy Developers](https://developers.giphy.com)
+   - Add to `local.properties`:
+     ```
+     GIPHY_API_KEY=your_api_key_here
+     ```
+
+4. **Configure Backend**
+   - Setup Node.js backend (separate repository)
+   - Update API endpoints in `app/src/main/java/com/jiffy/data/remote/ApiConfig.kt`
+
+5. **Build and Run**
+   ```bash
+   ./gradlew clean build
+   ./gradlew installDebug
+   ```
+
+### Configuration Files
+
+**local.properties** (Create this file)
+```properties
+sdk.dir=/path/to/android/sdk
+GIPHY_API_KEY=your_giphy_api_key
+BACKEND_BASE_URL=https://your-backend-url.com/api
 ```
 
-#### 2. Firebase Configuration
-1. Go to [Firebase Console](https://console.firebase.google.com/)
-2. Create a new project or select existing one
-3. Add an Android app with package name: `com.darshan.jiffy`
-4. Download `google-services.json`
-5. Place it in the `app/` directory
+---
 
-#### 3. Enable Firebase Services
-In Firebase Console, enable:
-- **Authentication** → Google Sign-In provider
-- **Realtime Database** → Create database in test mode
+## 🗓 Development Roadmap
 
-#### 4. Configure Google Sign-In
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Enable Google+ API
-3. Create OAuth 2.0 credentials
-4. Add your debug/release SHA-1 fingerprints
+### Phase 1: MVP Core (Weeks 1-8)
 
-To get your SHA-1:
-```bash
-keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android
-```
+#### Sprint 1-2: Foundation (Weeks 1-4)
+- [ ] Project setup and architecture
+- [ ] Firebase Authentication integration
+- [ ] User registration and login
+- [ ] Profile creation and management
+- [ ] Basic UI/UX implementation
 
-#### 5. Build & Run
-```bash
-# Open project in Android Studio
-# Sync Gradle
-# Run on emulator or physical device
-```
+#### Sprint 3-4: Core Chat Features (Weeks 5-8)
+- [ ] Friend system implementation
+- [ ] One-on-one chat functionality
+- [ ] Giphy API integration
+- [ ] Real-time messaging with WebSocket
+- [ ] Message history and pagination
 
-Or via command line:
-```bash
-./gradlew assembleDebug
-./gradlew installDebug
-```
+### Phase 2: Enhanced Features (Weeks 9-12)
 
-## 📋 Development Roadmap
+#### Sprint 5-6: Social & Advanced Features (Weeks 9-12)
+- [ ] Social media sharing (Facebook, Twitter, Instagram)
+- [ ] Group chat functionality
+- [ ] Read receipts and typing indicators
+- [ ] Push notifications setup
+- [ ] Message search functionality
 
-### Phase 1: Foundation ✅ (Completed)
-- [x] Project setup and structure
-- [x] Google Sign-In integration
-- [x] Firebase Authentication
-- [x] User creation in Realtime Database
-- [x] Basic UI layout
+### Phase 3: Polish & Release (Weeks 13-16)
 
-### Phase 2: Core Messaging (In Progress)
-- [ ] Real-time chat functionality
-- [ ] Message model and adapter
-- [ ] Chat list view
-- [ ] Individual chat screens
-- [ ] Message timestamps and read receipts
+#### Sprint 7: Testing & Optimization (Weeks 13-14)
+- [ ] Unit and integration testing
+- [ ] Load testing and performance optimization
+- [ ] Security audit
+- [ ] Bug fixes and refinements
 
-### Phase 3: GIF Integration
-- [ ] Integrate GIF API (Giphy/Tenor)
-- [ ] GIF search and browse interface
-- [ ] GIF picker in chat
-- [ ] GIF caching and optimization
-- [ ] Share GIFs in conversations
+#### Sprint 8: Beta & Release (Weeks 15-16)
+- [ ] Beta testing program
+- [ ] Play Store listing optimization
+- [ ] Production deployment
+- [ ] Marketing and launch preparation
 
-### Phase 4: Enhanced Features
-- [ ] User profiles with avatars
-- [ ] Online/offline status
-- [ ] Push notifications (FCM)
-- [ ] Group chat support
-- [ ] Media sharing (images, videos)
-- [ ] Message reactions and emojis
-
-### Phase 5: Polish & Optimization
-- [ ] Performance optimization
-- [ ] Offline support
-- [ ] Dark mode
-- [ ] Custom themes
-- [ ] Settings and preferences
-- [ ] Comprehensive testing suite
-
-### Phase 6: Advanced Features (Future)
-- [ ] Voice messages
-- [ ] Video calls
-- [ ] Story/status feature
-- [ ] End-to-end encryption
-- [ ] Multi-device sync
-- [ ] Chat backup and restore
-
-## 🧪 Testing
-
-### Run Unit Tests
-```bash
-./gradlew test
-```
-
-### Run Instrumentation Tests
-```bash
-./gradlew connectedAndroidTest
-```
-
-## 📦 Building Release APK
-
-```bash
-./gradlew assembleRelease
-```
-
-The signed APK will be available at: `app/build/outputs/apk/release/`
+---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+We welcome contributions! Please follow these steps:
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
 3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-## 📝 Code Style
+### Coding Standards
+- Follow Android Kotlin style guide
+- Write meaningful commit messages
+- Add unit tests for new features
+- Update documentation as needed
 
-This project follows the [Android Kotlin Style Guide](https://developer.android.com/kotlin/style-guide) and [Java Style Guide](https://google.github.io/styleguide/javaguide.html).
-
-## 🐛 Known Issues
-
-- Project uses older Gradle version (3.5.1) - upgrade recommended
-- Android API targets 28 - should update to latest (33+)
-- JCenter repository is deprecated - migrate to Maven Central
+---
 
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 👨‍💻 Author
+---
+
+## 📞 Contact
 
 **Darshan Pania**
 - GitHub: [@darshanpania](https://github.com/darshanpania)
 - Email: darshanpania@gmail.com
 
+---
+
 ## 🙏 Acknowledgments
 
-- Firebase for real-time backend infrastructure
-- Material Design guidelines for UI/UX inspiration
-- Android developer community for best practices
-
-## 📞 Support
-
-For support, email darshanpania@gmail.com or open an issue in the repository.
+- [Giphy](https://giphy.com) for the amazing GIF API
+- [Firebase](https://firebase.google.com) for backend services
+- [Material Design](https://material.io) for UI components
+- The Android developer community
 
 ---
 
-**Made with ❤️ and lots of GIFs!**
+**Built with ❤️ by Darshan Pania**
