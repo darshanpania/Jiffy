@@ -1,14 +1,12 @@
 node_modules
 npm-debug.log
 .env
-.env.*
-!.env.example
-dist
-coverage
+.env.local
 .git
 .gitignore
-*.md
+README.md
 .vscode
 .idea
 *.log
+coverage
 .DS_Store
