@@ -1,6 +1,5 @@
 # Built application files
 *.apk
-*.aab
 *.ap_
 *.aab
 
@@ -14,7 +13,6 @@
 bin/
 gen/
 out/
-release/
 
 # Gradle files
 .gradle/
@@ -38,16 +36,10 @@ captures/
 # IntelliJ
 *.iml
 .idea/
-.idea/workspace.xml
-.idea/tasks.xml
-.idea/gradle.xml
-.idea/assetWizardSettings.xml
-.idea/dictionaries
-.idea/libraries
-.idea/jarRepositories.xml
-.idea/caches
-.idea/modules.xml
-.idea/navEditor.xml
+*.iws
+*.ipr
+*~
+*.swp
 
 # Keystore files
 *.jks
@@ -57,7 +49,7 @@ captures/
 .externalNativeBuild
 .cxx/
 
-# Google Services (e.g. APIs or Firebase)
+# Google Services (API keys)
 google-services.json
 
 # Freeline
@@ -84,12 +76,9 @@ lint/tmp/
 # Android Profiling
 *.hprof
 
+# Secrets
+secrets.properties
+.env
+
 # MacOS
 .DS_Store
-
-# Secrets - DO NOT COMMIT
-.env
-.env.local
-*.pem
-*.p8
-*.p12
