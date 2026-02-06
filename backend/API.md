@@ -1,106 +1,239 @@
 # 📡 JIFFY Backend API Documentation
 
-**Base URL:** `https://api.jiffy.app/api/v1` (Production)  
-**Base URL:** `http://localhost:3000/api/v1` (Development)
+**Version:** 1.0.0  
+**Base URL:** `https://your-app.railway.app`  
+**Authentication:** Bearer Token (Supabase JWT)
 
 ---
 
 ## 🔐 Authentication
 
-All API endpoints require authentication except `/health`.
+All endpoints (except `/health`) require authentication.
 
-### Authentication Header
-
+### Headers
 ```http
 Authorization: Bearer <supabase-jwt-token>
-```
-
-### How to Get Token
-
-1. **Android App:** Get token from Supabase Auth after Google/Apple Sign-In
-2. **Testing:** Use Supabase Dashboard to generate test token
-
-**Example:**
-```bash
-curl -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
-     http://localhost:3000/api/v1/users/me
+Content-Type: application/json
 ```
 
 ---
 
-## 👤 User Endpoints
+## 📡 Endpoints
 
-### Get Current User Profile
+### Health Check
 
-```http
-GET /api/v1/users/me
+#### GET /health
+
+Check server health status (no auth required).
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "timestamp": "2026-02-06T15:00:00.000Z",
+  "uptime": 3600,
+  "environment": "production",
+  "version": "1.0.0"
+}
+```
+
+---
+
+## 🔑 Authentication Endpoints
+
+### POST /api/auth/verify
+
+Verify JWT token validity.
+
+**Request:**
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
 ```
 
 **Response:**
 ```json
 {
-  "success": true,
-  "data": {
+  "valid": true,
+  "user": {
     "id": "uuid",
     "email": "user@example.com",
-    "display_name": "John Doe",
-    "photo_url": "https://...",
-    "bio": "Love GIFs!",
-    "is_online": true,
-    "created_at": "2026-02-06T10:00:00Z"
+    "role": "authenticated"
   }
 }
 ```
 
-### Update Profile
+### POST /api/auth/refresh
 
-```http
-PUT /api/v1/users/me
-Content-Type: application/json
+Refresh access token using refresh token.
 
+**Request:**
+```json
 {
-  "displayName": "John Doe Updated",
-  "bio": "New bio",
-  "phoneNumber": "+1234567890"
+  "refreshToken": "refresh-token-here"
 }
-```
-
-### Search Users
-
-```http
-GET /api/v1/users/search?q=john&limit=20
 ```
 
 **Response:**
 ```json
 {
-  "success": true,
-  "data": [
-    {
-      "id": "uuid",
-      "display_name": "John Doe",
-      "email": "john@example.com",
-      "photo_url": "https://...",
-      "is_online": true
-    }
-  ]
+  "accessToken": "new-access-token",
+  "refreshToken": "new-refresh-token",
+  "expiresIn": 3600
 }
 ```
 
-### Get Friends List
+### GET /api/auth/me
 
-```http
-GET /api/v1/users/me/friends
+Get current authenticated user profile.
+
+**Response:**
+```json
+{
+  "id": "uuid",
+  "email": "user@example.com",
+  "display_name": "John Doe",
+  "photo_url": "https://...",
+  "bio": "Love GIFs!",
+  "is_online": true,
+  "created_at": "2026-01-01T00:00:00Z"
+}
 ```
 
-### Update Online Status
+---
 
+## 👥 User Endpoints
+
+### GET /api/users/profile/:userId
+
+Get user profile by ID.
+
+**Response:**
+```json
+{
+  "id": "uuid",
+  "email": "user@example.com",
+  "display_name": "John Doe",
+  "photo_url": "https://...",
+  "bio": "Love GIFs!",
+  "is_online": true,
+  "last_seen": "2026-02-06T15:00:00Z"
+}
+```
+
+### PUT /api/users/profile
+
+Update current user's profile.
+
+**Request:**
+```json
+{
+  "displayName": "Jane Doe",
+  "bio": "GIF enthusiast",
+  "photoUrl": "https://..."
+}
+```
+
+**Response:**
+```json
+{
+  "id": "uuid",
+  "display_name": "Jane Doe",
+  "bio": "GIF enthusiast",
+  "photo_url": "https://...",
+  "updated_at": "2026-02-06T15:00:00Z"
+}
+```
+
+### GET /api/users/search
+
+Search users using PostgreSQL full-text search.
+
+**Query Parameters:**
+- `q` (required): Search query
+- `limit` (optional, default: 20): Results per page
+- `offset` (optional, default: 0): Pagination offset
+
+**Example:**
 ```http
-PUT /api/v1/users/me/status
-Content-Type: application/json
+GET /api/users/search?q=john&limit=10&offset=0
+```
 
+**Response:**
+```json
+{
+  "results": [
+    {
+      "id": "uuid",
+      "email": "john@example.com",
+      "display_name": "John Doe",
+      "photo_url": "https://...",
+      "bio": "...",
+      "is_online": true
+    }
+  ],
+  "count": 1,
+  "offset": 0,
+  "limit": 10
+}
+```
+
+### POST /api/users/presence
+
+Update user's online/offline status.
+
+**Request:**
+```json
 {
   "isOnline": true
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Presence updated",
+  "isOnline": true
+}
+```
+
+### GET /api/users/friends
+
+Get user's friends list.
+
+**Response:**
+```json
+{
+  "friends": [
+    {
+      "id": "uuid",
+      "display_name": "Friend Name",
+      "photo_url": "https://...",
+      "is_online": true,
+      "last_seen": "2026-02-06T14:00:00Z"
+    }
+  ],
+  "count": 15
+}
+```
+
+### POST /api/users/fcm-token
+
+Update user's FCM token for push notifications.
+
+**Request:**
+```json
+{
+  "token": "fcm-token-here",
+  "deviceType": "android"
+}
+```
+
+**Response:**
+```json
+{
+  "message": "FCM token updated successfully"
 }
 ```
 
@@ -108,244 +241,336 @@ Content-Type: application/json
 
 ## 💬 Chat Endpoints
 
-### Get All Chats
+### GET /api/chats
 
-```http
-GET /api/v1/chats
-```
+Get all chats for current user.
 
 **Response:**
 ```json
 {
-  "success": true,
-  "data": [
+  "chats": [
     {
       "chat_id": "uuid",
       "chat_type": "DIRECT",
-      "chat_name": "Jane Doe",
-      "last_message": {
-        "content": "Hey! 👋",
-        "created_at": "2026-02-06T10:00:00Z"
-      },
-      "unread_count": 3
+      "chat_name": "John Doe",
+      "chat_photo": "https://...",
+      "last_message": {...},
+      "unread_count": 3,
+      "updated_at": "2026-02-06T15:00:00Z"
     }
-  ]
+  ],
+  "count": 10
 }
 ```
 
-### Create/Get Direct Chat
+### POST /api/chats/direct
 
-```http
-POST /api/v1/chats/direct
-Content-Type: application/json
+Get or create direct chat with another user.
 
+**Request:**
+```json
 {
-  "userId": "friend-user-id"
+  "otherUserId": "uuid"
 }
-```
-
-### Create Group Chat
-
-```http
-POST /api/v1/chats/group
-Content-Type: application/json
-
-{
-  "name": "My Group",
-  "description": "Group for friends",
-  "memberIds": ["user-id-1", "user-id-2"]
-}
-```
-
-### Get Messages
-
-```http
-GET /api/v1/chats/:chatId/messages?page=1&limit=50
 ```
 
 **Response:**
 ```json
 {
-  "success": true,
-  "data": {
-    "messages": [
-      {
-        "id": "uuid",
-        "chat_id": "uuid",
-        "sender_id": "uuid",
-        "content": "Hello!",
-        "type": "TEXT",
-        "status": "READ",
-        "created_at": "2026-02-06T10:00:00Z"
-      }
-    ],
-    "total": 150,
-    "page": 1,
-    "limit": 50,
-    "hasMore": true
-  }
+  "chatId": "uuid"
 }
 ```
 
-### Send Message
+### POST /api/chats/group
 
-```http
-POST /api/v1/chats/:chatId/messages
-Content-Type: application/json
+Create a group chat.
 
+**Request:**
+```json
 {
-  "chatId": "chat-uuid",
-  "content": "Hey there!",
+  "name": "Team GIFs",
+  "memberIds": ["uuid1", "uuid2", "uuid3"],
+  "description": "Our awesome group",
+  "photoUrl": "https://..."
+}
+```
+
+**Response:**
+```json
+{
+  "groupId": "uuid",
+  "message": "Group created successfully"
+}
+```
+
+### GET /api/chats/:chatId/messages
+
+Get messages for a chat.
+
+**Query Parameters:**
+- `limit` (optional, default: 50): Messages per page
+- `offset` (optional, default: 0): Pagination offset
+
+**Response:**
+```json
+{
+  "messages": [
+    {
+      "id": "uuid",
+      "chat_id": "uuid",
+      "sender_id": "uuid",
+      "content": "Hello!",
+      "type": "TEXT",
+      "status": "READ",
+      "created_at": "2026-02-06T15:00:00Z",
+      "sender": {
+        "id": "uuid",
+        "display_name": "John",
+        "photo_url": "https://..."
+      }
+    }
+  ],
+  "count": 20,
+  "offset": 0,
+  "limit": 50
+}
+```
+
+### POST /api/chats/:chatId/messages
+
+Send a message in a chat.
+
+**Request:**
+```json
+{
+  "content": "Check out this GIF!",
   "type": "TEXT"
 }
 ```
 
-### Send GIF Message
-
-```http
-POST /api/v1/chats/:chatId/messages
-Content-Type: application/json
-
+**For GIF messages:**
+```json
 {
-  "chatId": "chat-uuid",
-  "content": "https://media.giphy.com/media/...",
+  "content": "https://media.giphy.com/media/xyz/giphy.gif",
   "type": "GIF"
 }
 ```
 
-### Mark Messages as Read
-
-```http
-PUT /api/v1/chats/:chatId/read
-```
-
-### Add Group Member
-
-```http
-POST /api/v1/chats/:chatId/members
-Content-Type: application/json
-
+**Response:**
+```json
 {
-  "userId": "user-to-add-id"
+  "id": "uuid",
+  "chat_id": "uuid",
+  "sender_id": "uuid",
+  "content": "Check out this GIF!",
+  "type": "TEXT",
+  "status": "SENT",
+  "created_at": "2026-02-06T15:00:00Z",
+  "sender": {...}
 }
 ```
 
-### Remove Group Member
+**Note:** Automatically sends FCM notifications to all chat participants.
 
-```http
-DELETE /api/v1/chats/:chatId/members/:userId
+### POST /api/chats/:chatId/read
+
+Mark all messages in a chat as read.
+
+**Response:**
+```json
+{
+  "message": "Messages marked as read"
+}
 ```
 
 ---
 
 ## 🎬 GIF Endpoints
 
-### Search GIFs - GIPHY
+### GET /api/gifs/search
 
+Search GIFs from GIPHY or Tenor.
+
+**Query Parameters:**
+- `q` (required): Search query
+- `source` (optional, default: 'giphy'): 'giphy' or 'tenor'
+- `limit` (optional, default: 25): Results limit
+- `offset` (optional, default: 0): Pagination offset
+
+**Example:**
 ```http
-GET /api/v1/gifs/search/giphy?q=funny+cat&limit=25&offset=0
+GET /api/gifs/search?q=happy+cat&source=giphy&limit=25
 ```
 
 **Response:**
 ```json
 {
-  "success": true,
-  "source": "GIPHY",
-  "data": [
+  "results": [
     {
-      "id": "giphy-id",
-      "title": "Funny Cat GIF",
-      "url": "https://media.giphy.com/media/.../giphy.gif",
-      "previewUrl": "https://media.giphy.com/media/.../200.gif",
-      "thumbnailUrl": "https://media.giphy.com/media/.../100.gif",
+      "id": "abc123",
+      "title": "Happy Cat",
+      "url": "https://media.giphy.com/media/abc123/giphy.gif",
+      "previewUrl": "https://media.giphy.com/media/abc123/200.gif",
+      "thumbnailUrl": "https://media.giphy.com/media/abc123/100.gif",
       "width": 480,
       "height": 270,
       "source": "GIPHY"
     }
-  ]
+  ],
+  "count": 25,
+  "source": "giphy",
+  "query": "happy cat"
 }
 ```
 
-### Search GIFs - Tenor
+### GET /api/gifs/trending
 
-```http
-GET /api/v1/gifs/search/tenor?q=funny+cat&limit=25
-```
+Get trending GIFs.
 
-### Trending GIFs - GIPHY
+**Query Parameters:**
+- `source` (optional, default: 'giphy'): 'giphy' or 'tenor'
+- `limit` (optional, default: 25): Results limit
 
-```http
-GET /api/v1/gifs/trending/giphy?limit=25
-```
-
-### Trending GIFs - Tenor
-
-```http
-GET /api/v1/gifs/trending/tenor?limit=25
-```
-
-### Save Favorite GIF
-
-```http
-POST /api/v1/gifs/favorites
-Content-Type: application/json
-
+**Response:**
+```json
 {
-  "id": "gif-id",
-  "title": "Funny Cat",
-  "url": "https://...",
-  "previewUrl": "https://...",
-  "thumbnailUrl": "https://...",
-  "width": 480,
-  "height": 270,
-  "source": "GIPHY"
+  "results": [...],
+  "count": 25,
+  "source": "giphy"
 }
 ```
 
-### Get Favorite GIFs
+### GET /api/gifs/categories
 
-```http
-GET /api/v1/gifs/favorites
+Get GIF categories.
+
+**Query Parameters:**
+- `source` (optional, default: 'giphy'): 'giphy' or 'tenor'
+
+**Response:**
+```json
+{
+  "categories": [
+    {
+      "name": "Reactions",
+      "nameEncoded": "reactions"
+    },
+    {
+      "name": "Entertainment",
+      "nameEncoded": "entertainment"
+    }
+  ],
+  "source": "giphy"
+}
+```
+
+### POST /api/gifs/favorites
+
+Save a GIF to favorites.
+
+**Request:**
+```json
+{
+  "gifId": "abc123",
+  "gifUrl": "https://media.giphy.com/media/abc123/giphy.gif",
+  "source": "giphy",
+  "title": "Happy Cat",
+  "thumbnailUrl": "https://..."
+}
+```
+
+**Response:**
+```json
+{
+  "id": "uuid",
+  "user_id": "uuid",
+  "gif_id": "abc123",
+  "gif_url": "https://...",
+  "gif_source": "GIPHY",
+  "title": "Happy Cat",
+  "created_at": "2026-02-06T15:00:00Z"
+}
+```
+
+### GET /api/gifs/favorites
+
+Get user's favorite GIFs.
+
+**Query Parameters:**
+- `limit` (optional, default: 50)
+- `offset` (optional, default: 0)
+
+**Response:**
+```json
+{
+  "favorites": [...],
+  "count": 15
+}
+```
+
+### DELETE /api/gifs/favorites/:favoriteId
+
+Remove a favorite GIF.
+
+**Response:**
+```json
+{
+  "message": "Favorite removed"
+}
 ```
 
 ---
 
 ## 🔔 Notification Endpoints
 
-### Register FCM Token
+### POST /api/notifications/send
 
-```http
-POST /api/v1/auth/register-fcm-token
-Content-Type: application/json
+Send push notification to a single user via FCM.
 
+**Request:**
+```json
 {
-  "fcmToken": "firebase-token-here",
-  "deviceType": "android"
+  "userId": "uuid",
+  "title": "New Message",
+  "body": "You have a new message!",
+  "data": {
+    "type": "message",
+    "chat_id": "uuid"
+  }
 }
-```
-
-### Send Test Notification
-
-```http
-POST /api/v1/notifications/test
-```
-
----
-
-## ❤️‍🩹 Health Check
-
-```http
-GET /health
 ```
 
 **Response:**
 ```json
 {
-  "status": "ok",
-  "timestamp": "2026-02-06T15:00:00.000Z",
-  "uptime": 123.45,
-  "environment": "production",
-  "supabase": "connected"
+  "message": "Notification sent",
+  "sentCount": 2
+}
+```
+
+### POST /api/notifications/send-multi
+
+Send notification to multiple users.
+
+**Request:**
+```json
+{
+  "userIds": ["uuid1", "uuid2", "uuid3"],
+  "title": "Group Update",
+  "body": "You were added to a group",
+  "data": {
+    "type": "group_invite",
+    "group_id": "uuid"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Notifications sent",
+  "sentCount": 3,
+  "failedCount": 0
 }
 ```
 
@@ -353,43 +578,56 @@ GET /health
 
 ## ⚠️ Error Responses
 
-### Standard Error Format
-
+### 400 Bad Request
 ```json
 {
-  "success": false,
-  "error": {
-    "message": "Error description",
-    "code": "ERROR_CODE"
-  }
+  "error": "Bad Request",
+  "message": "Invalid request data",
+  "details": [...]
 }
 ```
 
-### Common Error Codes
+### 401 Unauthorized
+```json
+{
+  "error": "Unauthorized",
+  "message": "Missing or invalid authorization header"
+}
+```
 
-| Code | Status | Description |
-|------|--------|-------------|
-| `UNAUTHORIZED` | 401 | Missing or invalid auth token |
-| `FORBIDDEN` | 403 | Insufficient permissions |
-| `NOT_FOUND` | 404 | Resource not found |
-| `VALIDATION_ERROR` | 400 | Invalid request data |
-| `RATE_LIMIT` | 429 | Too many requests |
-| `SERVER_ERROR` | 500 | Internal server error |
+### 404 Not Found
+```json
+{
+  "error": "Not Found",
+  "message": "Resource not found"
+}
+```
+
+### 429 Too Many Requests
+```json
+{
+  "error": "Too Many Requests",
+  "message": "Rate limit exceeded. Try again later."
+}
+```
+
+### 500 Internal Server Error
+```json
+{
+  "error": "Internal Server Error",
+  "message": "Something went wrong"
+}
+```
 
 ---
 
-## 📈 Rate Limiting
+## 📋 Rate Limits
 
-### Global Rate Limit
-- **100 requests per 15 minutes** per IP
-- Applies to all `/api/v1/*` endpoints
+- **Default:** 100 requests per 15 minutes per IP
+- **Applies to:** All `/api/*` endpoints
+- **Excludes:** `/health` endpoint
 
-### Strict Rate Limit (GIF Search)
-- **10 requests per minute** per IP
-- Applies to GIF search endpoints
-
-### Rate Limit Headers
-
+**Headers in Response:**
 ```http
 X-RateLimit-Limit: 100
 X-RateLimit-Remaining: 95
@@ -398,132 +636,122 @@ X-RateLimit-Reset: 1234567890
 
 ---
 
-## 📑 Pagination
+## 🔄 Pagination
 
-### Query Parameters
+All list endpoints support pagination:
 
-- `page` - Page number (default: 1)
-- `limit` - Items per page (default: 20, max: 100)
+**Query Parameters:**
+- `limit`: Items per page (max 100)
+- `offset`: Number of items to skip
 
-### Paginated Response
+**Example:**
+```http
+GET /api/users/search?q=john&limit=20&offset=40
+```
 
+Returns items 41-60.
+
+---
+
+## 📊 Response Format
+
+### Success Response
 ```json
 {
-  "success": true,
-  "data": [...],
-  "meta": {
-    "page": 1,
-    "limit": 20,
-    "total": 150,
-    "totalPages": 8,
-    "hasMore": true
-  }
+  "data": {...},
+  "message": "Success",
+  "timestamp": "2026-02-06T15:00:00Z"
+}
+```
+
+### List Response
+```json
+{
+  "results": [...],
+  "count": 25,
+  "offset": 0,
+  "limit": 25,
+  "total": 100
 }
 ```
 
 ---
 
-## 🐛 Testing APIs
+## 🔒 Security
+
+### Authentication Flow
+
+1. User signs in via Android app (Supabase Auth)
+2. Supabase returns JWT token
+3. Android app includes token in API requests:
+   ```http
+   Authorization: Bearer <jwt-token>
+   ```
+4. Backend validates token with Supabase
+5. Request proceeds if valid
+
+### Data Access
+
+- **Row Level Security (RLS)** enforced in Supabase
+- Backend uses **service key** for admin operations
+- User can only access their own data
+- PostgreSQL policies enforce permissions
+
+---
+
+## 🐛 Testing
 
 ### Using cURL
 
 ```bash
-# Health check
-curl http://localhost:3000/health
+# Set your token
+TOKEN="your-supabase-jwt-token"
 
-# Get user profile (requires token)
-curl -H "Authorization: Bearer YOUR_TOKEN" \
-     http://localhost:3000/api/v1/users/me
+# Test search
+curl -X GET "https://your-app.railway.app/api/users/search?q=john" \
+  -H "Authorization: Bearer $TOKEN"
 
-# Search GIFs from GIPHY
-curl -H "Authorization: Bearer YOUR_TOKEN" \
-     "http://localhost:3000/api/v1/gifs/search/giphy?q=cat&limit=10"
+# Test send message
+curl -X POST "https://your-app.railway.app/api/chats/uuid/messages" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"content": "Hello!", "type": "TEXT"}'
 ```
 
 ### Using Postman
 
-1. Import collection from `/docs/postman-collection.json` (create this)
-2. Set `Authorization` header with Bearer token
-3. Test endpoints
-
----
-
-## 🛠️ Development
-
-### Run Locally
-
-```bash
-# Install dependencies
-npm install
-
-# Copy environment file
-cp .env.example .env
-
-# Run in development mode
-npm run dev
-
-# Server runs on http://localhost:3000
+Import the Postman collection:
 ```
-
-### Run with Docker
-
-```bash
-# Build and run
-docker-compose up --build
-
-# Run in background
-docker-compose up -d
-
-# View logs
-docker-compose logs -f api
-
-# Stop
-docker-compose down
+backend/postman/JIFFY_API.postman_collection.json
 ```
 
 ---
 
-## 🚀 Deployment
+## 📦 Caching
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed deployment instructions.
+### Cached Endpoints
 
----
+- **GIF Search:** 10 minutes
+- **Trending GIFs:** 10 minutes
+- **Categories:** 1 hour
 
-## 📊 Monitoring
+### Cache Headers
 
-### Logs
+```http
+X-Cache: HIT
+```
 
-- **Development:** Console output
-- **Production:** `logs/combined.log` and `logs/error.log`
-
-### Metrics
-
-- Health check: `/health`
-- Uptime monitoring via Railway
-- Error tracking via Winston logs
+Indicates response served from cache.
 
 ---
 
-## 🔒 Security
+## 📞 Support
 
-### Best Practices
-
-1. **Never expose service keys** - Use environment variables
-2. **Validate all inputs** - Joi validation enabled
-3. **Rate limiting** - Prevents abuse
-4. **HTTPS only** - Use Railway's SSL
-5. **Helmet headers** - Security headers enabled
-6. **CORS configured** - Only allow trusted origins
+**Questions or issues?**
+- GitHub: [Issues](https://github.com/darshanpania/jiffy/issues)
+- Email: dev@jiffy.app
 
 ---
 
-## 📚 Additional Resources
-
-- [Supabase API Reference](https://supabase.com/docs/reference/javascript)
-- [Firebase Admin SDK](https://firebase.google.com/docs/admin/setup)
-- [GIPHY API Docs](https://developers.giphy.com/docs/api/)
-- [Tenor API Docs](https://developers.google.com/tenor)
-
----
-
-**Last Updated:** February 6, 2026
+**Last Updated:** February 6, 2026  
+**API Version:** 1.0.0
