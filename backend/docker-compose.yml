@@ -1,51 +1,26 @@
 version: '3.8'
 
 services:
-  # JIFFY Backend API
-  api:
+  backend:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: jiffy-backend
-    restart: unless-stopped
     ports:
-      - '3000:3000'
+      - "3000:3000"
     environment:
       - NODE_ENV=production
-      - PORT=3000
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
-      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
-      - FCM_PROJECT_ID=${FCM_PROJECT_ID}
-      - FCM_PRIVATE_KEY=${FCM_PRIVATE_KEY}
-      - FCM_CLIENT_EMAIL=${FCM_CLIENT_EMAIL}
-      - GIPHY_API_KEY=${GIPHY_API_KEY}
-      - TENOR_API_KEY=${TENOR_API_KEY}
-    volumes:
-      - ./logs:/app/logs
+    env_file:
+      - .env
+    restart: unless-stopped
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
     networks:
       - jiffy-network
-
-  # Redis (optional - for caching)
-  redis:
-    image: redis:7-alpine
-    container_name: jiffy-redis
-    restart: unless-stopped
-    ports:
-      - '6379:6379'
-    volumes:
-      - redis-data:/data
-    networks:
-      - jiffy-network
-
-volumes:
-  redis-data:
 
 networks:
   jiffy-network:

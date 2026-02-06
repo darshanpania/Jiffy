@@ -1,261 +1,229 @@
-# 🚂 JIFFY Backend Deployment Guide
+# 🚀 JIFFY Backend Deployment Guide
 
-**Deploy Node.js/Express backend to Railway with Supabase**
-
----
-
-## 📊 Overview
-
-This guide covers deploying the JIFFY backend API to Railway, a modern deployment platform with excellent support for Node.js applications.
+Comprehensive guide to deploy JIFFY backend to Railway.
 
 ---
 
-## ✅ Prerequisites
+## 📋 Prerequisites
 
-- [x] Railway account ([sign up](https://railway.app))
-- [x] GitHub repository with backend code
-- [x] Supabase project configured
-- [x] Firebase project (FCM only)
-- [x] API keys (GIPHY, Tenor, PostHog)
+- Railway account ([railway.app](https://railway.app))
+- GitHub repository connected to Railway
+- All environment variables ready
+- Supabase project configured
+- Firebase project setup (FCM)
 
 ---
 
-## 🚀 Quick Deploy (5 Minutes)
+## 📦 Railway Deployment
 
-### Option 1: Deploy via Railway CLI
+### Option 1: Deploy via Railway Dashboard
 
-```bash
-# 1. Install Railway CLI
-npm install -g @railway/cli
-
-# 2. Login to Railway
-railway login
-
-# 3. Navigate to backend directory
-cd backend
-
-# 4. Initialize Railway project
-railway init
-
-# 5. Link to existing project or create new
-railway link
-
-# 6. Set environment variables (see below)
-railway variables set SUPABASE_URL=your-url
-# ... set all variables
-
-# 7. Deploy!
-railway up
-
-# 8. Open in browser
-railway open
-```
-
-### Option 2: Deploy via GitHub Integration
-
-1. **Connect GitHub:**
-   - Go to [Railway Dashboard](https://railway.app/dashboard)
+1. **Create Railway Project**
+   - Go to [railway.app](https://railway.app)
    - Click "New Project"
    - Select "Deploy from GitHub repo"
-   - Choose `darshanpania/jiffy`
-   - Set root directory to `/backend`
+   - Choose `darshanpania/jiffy` repository
+   - Select `backend` as root directory
 
-2. **Configure Build:**
+2. **Configure Service**
    - Railway auto-detects Dockerfile
-   - Build command: `npm run build`
-   - Start command: `npm start`
+   - Set root directory to `backend`
+   - Configure port to `3000`
 
-3. **Set Environment Variables** (see section below)
+3. **Add Environment Variables**
+   Go to Variables tab and add:
+   ```
+   SUPABASE_URL
+   SUPABASE_SERVICE_KEY
+   SUPABASE_ANON_KEY
+   FCM_PROJECT_ID
+   FCM_PRIVATE_KEY
+   FCM_CLIENT_EMAIL
+   FCM_CLIENT_ID
+   GIPHY_API_KEY
+   TENOR_API_KEY
+   NODE_ENV=production
+   ```
 
-4. **Deploy:**
-   - Railway deploys automatically on push to master
+4. **Deploy**
+   - Click "Deploy"
+   - Wait for build to complete
+   - Check deployment logs
+
+5. **Get URL**
+   - Railway provides a URL: `https://your-app.railway.app`
+   - Test health endpoint: `https://your-app.railway.app/health`
+
+### Option 2: Deploy via Railway CLI
+
+1. **Install Railway CLI:**
+```bash
+npm install -g @railway/cli
+```
+
+2. **Login:**
+```bash
+railway login
+```
+
+3. **Initialize:**
+```bash
+cd backend
+railway init
+```
+
+4. **Link to project:**
+```bash
+railway link
+```
+
+5. **Set variables:**
+```bash
+# Set all environment variables
+railway variables set SUPABASE_URL=https://your-project.supabase.co
+railway variables set SUPABASE_SERVICE_KEY=your-key
+# ... set all other variables
+```
+
+6. **Deploy:**
+```bash
+railway up
+```
+
+7. **Check status:**
+```bash
+railway status
+```
+
+8. **View logs:**
+```bash
+railway logs
+```
 
 ---
 
-## 🔑 Environment Variables
+## 🔧 Environment Variables Setup
 
-### Required Variables on Railway
+### Required Variables
 
-Set these in Railway Dashboard → Variables:
-
+**Supabase:**
 ```bash
-# Server
-NODE_ENV=production
+SUPABASE_URL=https://xxxxx.supabase.co
+SUPABASE_SERVICE_KEY=eyJhbGc...
+SUPABASE_ANON_KEY=eyJhbGc...
+```
+
+**Firebase (FCM):**
+```bash
+FCM_PROJECT_ID=jiffy-prod
+FCM_PRIVATE_KEY_ID=abc123...
+FCM_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIIE...\n-----END PRIVATE KEY-----"
+FCM_CLIENT_EMAIL=firebase-adminsdk@jiffy-prod.iam.gserviceaccount.com
+FCM_CLIENT_ID=123456789...
+```
+
+**APIs:**
+```bash
+GIPHY_API_KEY=your-giphy-key
+TENOR_API_KEY=your-tenor-key
+```
+
+**Server:**
+```bash
 PORT=3000
-API_VERSION=v1
-
-# Supabase
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_KEY=your-service-role-key
-SUPABASE_ANON_KEY=your-anon-key
-
-# Firebase Cloud Messaging (FCM ONLY)
-FCM_PROJECT_ID=your-firebase-project-id
-FCM_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYour\nMultiline\nPrivate\nKey\n-----END PRIVATE KEY-----\n"
-FCM_CLIENT_EMAIL=firebase-adminsdk@your-project.iam.gserviceaccount.com
-
-# GIF APIs
-GIPHY_API_KEY=your-giphy-api-key
-TENOR_API_KEY=your-tenor-api-key
-
-# PostHog
-POSTHOG_API_KEY=phc_your-posthog-key
-POSTHOG_HOST=https://app.posthog.com
-
-# Security
-JWT_SECRET=your-secure-random-string-change-in-production
-
-# Rate Limiting
-RATE_LIMIT_WINDOW_MS=900000
-RATE_LIMIT_MAX_REQUESTS=100
-
-# CORS
-CORS_ORIGIN=https://jiffy.app,https://www.jiffy.app
-
-# Logging
+NODE_ENV=production
+CORS_ORIGIN=*
 LOG_LEVEL=info
 ```
 
-### Getting Firebase Private Key
+### Getting Firebase Credentials
 
-1. Go to [Firebase Console](https://console.firebase.google.com)
-2. Project Settings → Service Accounts
-3. Click "Generate New Private Key"
-4. Download JSON file
-5. Extract values:
-   - `FCM_PROJECT_ID` = `project_id`
-   - `FCM_PRIVATE_KEY` = `private_key` (keep \n characters)
-   - `FCM_CLIENT_EMAIL` = `client_email`
-
----
-
-## 📜 Railway Configuration
-
-### railway.json
-
-Already configured in `backend/railway.json`:
-
-```json
-{
-  "build": {
-    "builder": "DOCKERFILE",
-    "dockerfilePath": "Dockerfile"
-  },
-  "deploy": {
-    "numReplicas": 1,
-    "healthcheckPath": "/health",
-    "healthcheckTimeout": 10,
-    "restartPolicyType": "ON_FAILURE",
-    "restartPolicyMaxRetries": 3
-  }
-}
-```
-
-### Dockerfile
-
-Already configured with:
-- ✅ Multi-stage build (optimized)
-- ✅ Non-root user (security)
-- ✅ Health check
-- ✅ Dumb-init for signal handling
-- ✅ Alpine Linux (small image)
+1. Firebase Console → Project Settings → Service Accounts
+2. Click "Generate new private key"
+3. Download JSON file
+4. Extract values:
+   - `project_id` → `FCM_PROJECT_ID`
+   - `private_key_id` → `FCM_PRIVATE_KEY_ID`
+   - `private_key` → `FCM_PRIVATE_KEY` (keep \n as \\n)
+   - `client_email` → `FCM_CLIENT_EMAIL`
+   - `client_id` → `FCM_CLIENT_ID`
 
 ---
 
-## 🔍 Verify Deployment
+## ✅ Verify Deployment
 
-### 1. Check Health Endpoint
-
+### 1. Health Check
 ```bash
 curl https://your-app.railway.app/health
 ```
 
-**Expected Response:**
+Expected response:
 ```json
 {
-  "status": "ok",
+  "status": "healthy",
   "timestamp": "2026-02-06T15:00:00.000Z",
-  "uptime": 123.45,
+  "uptime": 123,
   "environment": "production",
-  "supabase": "connected"
+  "version": "1.0.0"
 }
 ```
 
 ### 2. Test API Endpoint
-
 ```bash
-curl -H "Authorization: Bearer YOUR_TOKEN" \
-     https://your-app.railway.app/api/v1/users/me
+curl -X GET "https://your-app.railway.app/api/users/search?q=test" \
+  -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
 ### 3. Check Logs
-
 ```bash
-# Via Railway CLI
-railway logs
-
-# Via Railway Dashboard
-# Go to Deployments → View Logs
+railway logs --tail 100
 ```
 
 ---
 
 ## 📊 Monitoring
 
-### Railway Built-in Monitoring
+### Railway Dashboard
 
-1. **Deployments Tab:**
-   - Build status
-   - Deploy logs
-   - Crash reports
-
-2. **Metrics Tab:**
-   - CPU usage
-   - Memory usage
-   - Network traffic
-   - Request count
-
-3. **Logs Tab:**
-   - Real-time logs
-   - Error logs
-   - Custom log filters
+- **Metrics:** CPU, Memory, Network usage
+- **Logs:** Real-time application logs
+- **Deployments:** History of all deployments
+- **Health:** Service health status
 
 ### Custom Monitoring
 
-**PostHog Integration:**
-- Track API usage
-- Monitor error rates
-- Performance metrics
-
-**Winston Logs:**
-- Structured logging
-- Error tracking
-- Request logging
+Add monitoring endpoints:
+```javascript
+app.get('/metrics', (req, res) => {
+  res.json({
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    cpu: process.cpuUsage(),
+  });
+});
+```
 
 ---
 
-## 🔄 CI/CD Pipeline
+## 🔄 Updating Deployment
 
-### Automatic Deployment
+### Via Git Push
 
-Railway automatically deploys on:
-- Push to `master` branch
-- Pull request merge
-- Manual trigger
+```bash
+# Commit changes
+git add .
+git commit -m "feat: update backend"
+git push origin master
 
-### GitHub Actions
+# Railway auto-deploys on push
+```
 
-Configured in `.github/workflows/backend-ci.yml`:
+### Via Railway CLI
 
-1. **On Push/PR:**
-   - Lint code
-   - Type check
-   - Run tests
-   - Build TypeScript
-   - Build Docker image
-
-2. **On Master:**
-   - All above + deployment
+```bash
+cd backend
+railway up
+```
 
 ---
 
@@ -263,191 +231,178 @@ Configured in `.github/workflows/backend-ci.yml`:
 
 ### Build Fails
 
-**Check logs:**
+**Check Dockerfile:**
 ```bash
-railway logs --build
+# Test build locally
+docker build -t jiffy-backend .
 ```
 
-**Common issues:**
-- Missing environment variables
-- TypeScript compilation errors
-- Docker build errors
-
-**Solution:**
+**View build logs:**
 ```bash
-# Rebuild locally
-npm run build
-
-# Fix errors, then redeploy
-git push origin master
+railway logs --deployment
 ```
-
-### App Crashes
-
-**Check logs:**
-```bash
-railway logs
-```
-
-**Common causes:**
-- Supabase connection failed
-- Missing API keys
-- Port already in use
-
-**Solution:**
-- Verify all environment variables
-- Check Supabase project status
-- Review error logs
 
 ### Health Check Fails
 
-**Check endpoint:**
+**Test locally:**
 ```bash
-curl https://your-app.railway.app/health
+docker run -p 3000:3000 jiffy-backend
+curl http://localhost:3000/health
 ```
 
-**If fails:**
-1. Check if app is running
-2. Verify PORT environment variable
-3. Check Supabase connection
-4. Review deployment logs
+### Environment Variables Missing
+
+```bash
+# List all variables
+railway variables
+
+# Add missing variable
+railway variables set KEY=value
+```
+
+### High Memory Usage
+
+- Check for memory leaks
+- Review caching strategy
+- Monitor with Railway metrics
+- Consider increasing resources
 
 ---
 
-## 🔧 Maintenance
+## 🛡️ Security
 
-### Update Dependencies
+### Production Checklist
 
-```bash
-# Check for updates
-npm outdated
-
-# Update packages
-npm update
-
-# Test locally
-npm test
-
-# Deploy
-git add package.json package-lock.json
-git commit -m "chore: update dependencies"
-git push
-```
-
-### Database Migrations
-
-```bash
-# Run migrations
-npm run migrate
-
-# Or manually in Supabase Dashboard
-# SQL Editor → Run schema.sql
-```
-
-### Backup Strategy
-
-**Supabase Backups:**
-- Automatic daily backups (Supabase Pro)
-- Point-in-time recovery
-- Manual backups via Dashboard
-
-**Code Backups:**
-- Git repository (GitHub)
-- Railway automatic backups
-
----
-
-## 🔒 Security Checklist
-
-### Pre-Deployment
-
-- [ ] All secrets in environment variables
-- [ ] No hardcoded API keys
-- [ ] CORS configured for production domain
+- [ ] All secrets in environment variables (not code)
+- [ ] CORS configured properly
 - [ ] Rate limiting enabled
 - [ ] Helmet security headers active
-- [ ] Input validation on all endpoints
-- [ ] HTTPS enforced (Railway default)
+- [ ] HTTPS enforced by Railway
+- [ ] Logs don't contain sensitive data
+- [ ] Dependencies up to date
 - [ ] Non-root Docker user
-
-### Post-Deployment
-
-- [ ] Test all API endpoints
-- [ ] Verify authentication works
-- [ ] Check FCM notifications
-- [ ] Test rate limiting
-- [ ] Monitor error logs
-- [ ] Review security headers
 
 ---
 
-## 💰 Cost Estimation
+## 💰 Cost Optimization
 
 ### Railway Pricing
 
-**Hobby Plan:**
-- Free tier: $5 credit/month
-- Good for development/testing
-
-**Pro Plan ($20/month):**
-- Unlimited projects
-- Team collaboration
-- Custom domains
-- Higher resource limits
-
-**Estimated Costs for JIFFY:**
-- Backend API: ~$5-10/month
-- PostgreSQL (if separate): ~$5/month
-- Total: ~$15/month (small scale)
+- **Free Tier:** $5 credit/month
+- **Hobby Plan:** $5/month base
+- **Usage-based:** CPU, memory, network
 
 ### Optimization Tips
 
-1. **Use caching** - Reduce Supabase queries
-2. **Optimize images** - Compress GIF thumbnails
-3. **Connection pooling** - Reuse database connections
-4. **CDN for assets** - Use Supabase Storage CDN
+1. **Caching:** Reduce API calls to GIPHY/Tenor
+2. **Compression:** Enabled for smaller responses
+3. **Efficient Queries:** Optimize Supabase queries
+4. **Resource Limits:** Set appropriate container limits
+5. **Auto-scaling:** Configure based on load
 
 ---
 
-## ⚡ Performance Optimization
+## 🔗 Integration with Android App
 
-### Backend Performance
+### Update Android App
 
-```typescript
-// Enable compression
-app.use(compression());
-
-// Database connection pooling
-// Configured in Supabase
-
-// Cache frequently accessed data
-import cache from './utils/cache';
-cache.set('trending-gifs', gifs, 300); // 5 min cache
+In Android `local.properties`:
+```properties
+BACKEND_API_URL=https://your-app.railway.app
 ```
 
-### Query Optimization
+In Android code:
+```kotlin
+val BACKEND_URL = BuildConfig.BACKEND_API_URL
 
-- Use Supabase RLS for security
-- Add database indexes (already in schema.sql)
-- Limit query results
-- Use pagination
+// Use for API calls
+val response = client.get("$BACKEND_URL/api/gifs/search")
+```
 
 ---
 
-## 📄 Additional Documentation
+## ⬆️ Scaling
 
-- [API Documentation](API.md)
-- [Main README](README.md)
-- [Database Schema](../database/schema.sql)
-- [Project README](../README.md)
+### Horizontal Scaling
+
+Update `railway.json`:
+```json
+{
+  "deploy": {
+    "numReplicas": 3
+  }
+}
+```
+
+### Vertical Scaling
+
+Increase resources in Railway dashboard:
+- CPU: 0.5 vCPU → 1 vCPU
+- Memory: 512 MB → 1 GB
+
+---
+
+## 📝 Logs & Debugging
+
+### View Logs
+
+```bash
+# Real-time logs
+railway logs --tail
+
+# Last 100 lines
+railway logs --tail 100
+
+# Filter by level
+railway logs | grep ERROR
+```
+
+### Log Files
+
+Logs stored in:
+- `logs/error.log` - Errors only
+- `logs/all.log` - All logs
+
+---
+
+## 🔄 Rollback
+
+### Rollback to Previous Deployment
+
+```bash
+# List deployments
+railway deployments
+
+# Rollback to specific deployment
+railway rollback <deployment-id>
+```
+
+---
+
+## ✅ Post-Deployment Checklist
+
+- [ ] Health endpoint returns 200
+- [ ] All environment variables set
+- [ ] Supabase connection working
+- [ ] FCM sending notifications
+- [ ] GIPHY API responding
+- [ ] Tenor API responding
+- [ ] Rate limiting active
+- [ ] Logs being written
+- [ ] HTTPS working
+- [ ] CORS configured
+- [ ] Android app can connect
+- [ ] Test all critical endpoints
 
 ---
 
 ## 📞 Support
 
-**Issues:** [GitHub Issues](https://github.com/darshanpania/jiffy/issues)  
-**Email:** dev@jiffy.app
+**Issues?**
+- Check [Railway Status](https://railway.app/status)
+- Review [Railway Docs](https://docs.railway.app)
+- Open [GitHub Issue](https://github.com/darshanpania/jiffy/issues)
 
 ---
 
-**Deployed with ❤️ on Railway**
+**Deployed with Railway 🚄 | Powered by Supabase ⚡**

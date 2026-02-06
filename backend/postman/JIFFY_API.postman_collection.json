@@ -1,0 +1,237 @@
+{
+  "info": {
+    "name": "JIFFY Backend API",
+    "description": "Complete API collection for JIFFY GIF Messenger",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["health"]
+        }
+      }
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Verify Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"your-jwt-token\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/verify",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "verify"]
+            }
+          }
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "me"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Search Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/search?q=john",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "search"],
+              "query": [{"key": "q", "value": "john"}]
+            }
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"John Doe\",\n  \"bio\": \"Love GIFs!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "profile"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "GIFs",
+      "item": [
+        {
+          "name": "Search GIPHY",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/gifs/search?q=happy&source=giphy&limit=25",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "gifs", "search"],
+              "query": [
+                {"key": "q", "value": "happy"},
+                {"key": "source", "value": "giphy"},
+                {"key": "limit", "value": "25"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search Tenor",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/gifs/search?q=excited&source=tenor",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "gifs", "search"],
+              "query": [
+                {"key": "q", "value": "excited"},
+                {"key": "source", "value": "tenor"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Trending",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/gifs/trending?source=giphy",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "gifs", "trending"],
+              "query": [{"key": "source", "value": "giphy"}]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Chat",
+      "item": [
+        {
+          "name": "Get User Chats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/chats",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chats"]
+            }
+          }
+        },
+        {
+          "name": "Send Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Hello!\",\n  \"type\": \"TEXT\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/chats/:chatId/messages",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chats", ":chatId", "messages"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
