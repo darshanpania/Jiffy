@@ -1,40 +1,57 @@
-/**
- * GIF Controller
- * Handles GIPHY and Tenor API integration
- */
-
-const GiphyService = require('../services/giphy.service');
-const TenorService = require('../services/tenor.service');
+const giphyService = require('../services/giphy.service');
+const tenorService = require('../services/tenor.service');
 const supabase = require('../config/supabase');
 const logger = require('../config/logger');
 const { StatusCodes } = require('http-status-codes');
 
+/**
+ * GIF Controller
+ * Handles GIF search, trending, categories, and favorites
+ * Uses GIPHY as primary provider with Tenor as fallback
+ */
 class GifController {
   /**
-   * Search GIFs from GIPHY or Tenor
+   * GET /api/gifs/search
+   * Search GIFs across providers with automatic fallback
    */
   async searchGifs(req, res) {
     try {
-      const { q, source = 'giphy', limit = 25, offset = 0 } = req.query;
+      const { q: query, limit = 25, offset = 0, provider = 'auto' } = req.query;
       
-      let results;
+      logger.debug(`GIF search: "${query}" provider=${provider}`);
       
-      if (source === 'giphy') {
-        results = await GiphyService.search(q, limit, offset);
-      } else if (source === 'tenor') {
-        results = await TenorService.search(q, limit, offset);
+      let result;
+      
+      if (provider === 'tenor') {
+        // Use Tenor directly
+        result = await tenorService.search(query, parseInt(limit), offset);
+      } else if (provider === 'giphy') {
+        // Use GIPHY directly
+        result = await giphyService.search(query, parseInt(limit), parseInt(offset));
       } else {
-        return res.status(StatusCodes.BAD_REQUEST).json({
-          error: 'Bad Request',
-          message: 'Invalid source. Use "giphy" or "tenor"',
+        // Auto mode: Try GIPHY first, fallback to Tenor
+        result = await giphyService.search(query, parseInt(limit), parseInt(offset));
+        
+        if (!result.success) {
+          logger.warn('GIPHY failed, falling back to Tenor');
+          result = await tenorService.search(query, parseInt(limit), offset);
+        }
+      }
+      
+      if (!result.success) {
+        logger.error('All GIF providers failed:', result.error);
+        return res.status(StatusCodes.SERVICE_UNAVAILABLE).json({
+          error: 'Service Unavailable',
+          message: 'GIF search service is temporarily unavailable',
         });
       }
       
+      logger.info(`GIF search: "${query}" → ${result.data.gifs.length} results (${result.data.provider})`);
+      
       res.json({
-        results,
-        count: results.length,
-        source,
-        query: q,
+        ...result.data,
+        cached: result.cached || false,
+        query,
       });
     } catch (error) {
       logger.error('Search GIFs error:', error);
@@ -46,32 +63,46 @@ class GifController {
   }
   
   /**
-   * Get trending GIFs
+   * GET /api/gifs/trending
+   * Get trending GIFs with automatic fallback
    */
   async getTrendingGifs(req, res) {
     try {
-      const { source = 'giphy', limit = 25 } = req.query;
+      const { limit = 25, offset = 0, provider = 'auto' } = req.query;
       
-      let results;
+      logger.debug(`GIF trending: limit=${limit} provider=${provider}`);
       
-      if (source === 'giphy') {
-        results = await GiphyService.trending(limit);
-      } else if (source === 'tenor') {
-        results = await TenorService.featured(limit);
+      let result;
+      
+      if (provider === 'tenor') {
+        result = await tenorService.trending(parseInt(limit), offset);
+      } else if (provider === 'giphy') {
+        result = await giphyService.trending(parseInt(limit), parseInt(offset));
       } else {
-        return res.status(StatusCodes.BAD_REQUEST).json({
-          error: 'Bad Request',
-          message: 'Invalid source. Use "giphy" or "tenor"',
+        // Auto mode: Try GIPHY first
+        result = await giphyService.trending(parseInt(limit), parseInt(offset));
+        
+        if (!result.success) {
+          logger.warn('GIPHY failed, falling back to Tenor');
+          result = await tenorService.trending(parseInt(limit), offset);
+        }
+      }
+      
+      if (!result.success) {
+        return res.status(StatusCodes.SERVICE_UNAVAILABLE).json({
+          error: 'Service Unavailable',
+          message: 'GIF trending service is temporarily unavailable',
         });
       }
       
+      logger.info(`GIF trending → ${result.data.gifs.length} results (${result.data.provider})`);
+      
       res.json({
-        results,
-        count: results.length,
-        source,
+        ...result.data,
+        cached: result.cached || false,
       });
     } catch (error) {
-      logger.error('Get trending GIFs error:', error);
+      logger.error('Trending GIFs error:', error);
       res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
         error: 'Internal Server Error',
         message: 'Failed to get trending GIFs',
@@ -80,28 +111,43 @@ class GifController {
   }
   
   /**
-   * Get GIF categories
+   * GET /api/gifs/categories
+   * Get GIF categories with automatic fallback
    */
   async getCategories(req, res) {
     try {
-      const { source = 'giphy' } = req.query;
+      const { limit = 25, offset = 0, provider = 'auto' } = req.query;
       
-      let categories;
+      logger.debug(`GIF categories: limit=${limit} provider=${provider}`);
       
-      if (source === 'giphy') {
-        categories = await GiphyService.getCategories();
-      } else if (source === 'tenor') {
-        categories = await TenorService.getCategories();
+      let result;
+      
+      if (provider === 'tenor') {
+        result = await tenorService.getCategories(parseInt(limit), offset);
+      } else if (provider === 'giphy') {
+        result = await giphyService.getCategories(parseInt(limit), parseInt(offset));
       } else {
-        return res.status(StatusCodes.BAD_REQUEST).json({
-          error: 'Bad Request',
-          message: 'Invalid source',
+        // Auto mode: Try GIPHY first
+        result = await giphyService.getCategories(parseInt(limit), parseInt(offset));
+        
+        if (!result.success) {
+          logger.warn('GIPHY failed, falling back to Tenor');
+          result = await tenorService.getCategories(parseInt(limit), offset);
+        }
+      }
+      
+      if (!result.success) {
+        return res.status(StatusCodes.SERVICE_UNAVAILABLE).json({
+          error: 'Service Unavailable',
+          message: 'GIF categories service is temporarily unavailable',
         });
       }
       
+      logger.info(`GIF categories → ${result.data.categories.length} results (${result.data.provider})`);
+      
       res.json({
-        categories,
-        source,
+        ...result.data,
+        cached: result.cached || false,
       });
     } catch (error) {
       logger.error('Get categories error:', error);
@@ -113,43 +159,55 @@ class GifController {
   }
   
   /**
-   * Save favorite GIF to Supabase
+   * POST /api/gifs/favorites
+   * Save GIF to user's favorites
    */
   async saveFavorite(req, res) {
     try {
-      const { gifId, gifUrl, source, title, thumbnailUrl } = req.body;
       const userId = req.userId;
+      const { gifId, provider, gifUrl, title, thumbnailUrl } = req.body;
       
-      const { data, error } = await supabase
-        .from('favorite_gifs')
-        .insert({
+      logger.debug(`Saving favorite: ${gifId} (${provider}) for ${userId}`);
+      
+      // Insert favorite (upsert to prevent duplicates)
+      const { data: favorite, error } = await supabase
+        .from('gif_favorites')
+        .upsert({
           user_id: userId,
           gif_id: gifId,
+          provider: provider,
           gif_url: gifUrl,
-          gif_source: source.toUpperCase(),
-          title,
+          title: title || '',
           thumbnail_url: thumbnailUrl,
+        }, {
+          onConflict: 'user_id,gif_id,provider',
+          ignoreDuplicates: false,
         })
         .select()
         .single();
       
       if (error) {
-        // Handle duplicate
-        if (error.code === '23505') {
-          return res.status(StatusCodes.CONFLICT).json({
-            error: 'Conflict',
-            message: 'GIF already in favorites',
-          });
-        }
-        
         logger.error('Save favorite error:', error);
         return res.status(StatusCodes.BAD_REQUEST).json({
           error: 'Bad Request',
-          message: error.message,
+          message: 'Failed to save favorite',
         });
       }
       
-      res.status(StatusCodes.CREATED).json(data);
+      logger.info(`Favorite saved: ${favorite.id}`);
+      
+      res.status(StatusCodes.CREATED).json({
+        message: 'GIF saved to favorites',
+        favorite: {
+          id: favorite.id,
+          gifId: favorite.gif_id,
+          provider: favorite.provider,
+          gifUrl: favorite.gif_url,
+          title: favorite.title,
+          thumbnailUrl: favorite.thumbnail_url,
+          createdAt: favorite.created_at,
+        },
+      });
     } catch (error) {
       logger.error('Save favorite error:', error);
       res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
@@ -160,6 +218,7 @@ class GifController {
   }
   
   /**
+   * GET /api/gifs/favorites
    * Get user's favorite GIFs
    */
   async getFavorites(req, res) {
@@ -167,12 +226,14 @@ class GifController {
       const userId = req.userId;
       const { limit = 50, offset = 0 } = req.query;
       
-      const { data, error } = await supabase
-        .from('favorite_gifs')
-        .select('*')
+      logger.debug(`Getting favorites for: ${userId}`);
+      
+      const { data: favorites, error, count } = await supabase
+        .from('gif_favorites')
+        .select('*', { count: 'exact' })
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
-        .range(offset, offset + parseInt(limit) - 1);
+        .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
       
       if (error) {
         logger.error('Get favorites error:', error);
@@ -182,9 +243,22 @@ class GifController {
         });
       }
       
+      logger.info(`Favorites retrieved: ${userId} → ${favorites.length} favorites`);
+      
       res.json({
-        favorites: data,
-        count: data.length,
+        favorites: favorites.map(fav => ({
+          id: fav.id,
+          gifId: fav.gif_id,
+          provider: fav.provider,
+          gifUrl: fav.gif_url,
+          title: fav.title,
+          thumbnailUrl: fav.thumbnail_url,
+          createdAt: fav.created_at,
+        })),
+        count: favorites.length,
+        total: count,
+        limit: parseInt(limit),
+        offset: parseInt(offset),
       });
     } catch (error) {
       logger.error('Get favorites error:', error);
@@ -196,35 +270,91 @@ class GifController {
   }
   
   /**
-   * Remove favorite GIF
+   * DELETE /api/gifs/favorites/:favoriteId
+   * Remove GIF from user's favorites
    */
-  async removeFavorite(req, res) {
+  async deleteFavorite(req, res) {
     try {
-      const { favoriteId } = req.params;
       const userId = req.userId;
+      const { favoriteId } = req.params;
       
-      const { error } = await supabase
-        .from('favorite_gifs')
-        .delete()
+      logger.debug(`Deleting favorite: ${favoriteId} for ${userId}`);
+      
+      // Verify ownership before deleting
+      const { data: favorite } = await supabase
+        .from('gif_favorites')
+        .select('user_id')
         .eq('id', favoriteId)
-        .eq('user_id', userId); // Ensure user owns the favorite
+        .single();
+      
+      if (!favorite) {
+        return res.status(StatusCodes.NOT_FOUND).json({
+          error: 'Not Found',
+          message: 'Favorite not found',
+        });
+      }
+      
+      if (favorite.user_id !== userId) {
+        return res.status(StatusCodes.FORBIDDEN).json({
+          error: 'Forbidden',
+          message: 'You can only delete your own favorites',
+        });
+      }
+      
+      // Delete favorite
+      const { error } = await supabase
+        .from('gif_favorites')
+        .delete()
+        .eq('id', favoriteId);
       
       if (error) {
-        logger.error('Remove favorite error:', error);
+        logger.error('Delete favorite error:', error);
         return res.status(StatusCodes.BAD_REQUEST).json({
           error: 'Bad Request',
           message: error.message,
         });
       }
       
+      logger.info(`Favorite deleted: ${favoriteId}`);
+      
       res.json({
-        message: 'Favorite removed',
+        message: 'Favorite deleted successfully',
+        favoriteId,
       });
     } catch (error) {
-      logger.error('Remove favorite error:', error);
+      logger.error('Delete favorite error:', error);
       res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
         error: 'Internal Server Error',
-        message: 'Failed to remove favorite',
+        message: 'Failed to delete favorite',
+      });
+    }
+  }
+  
+  /**
+   * GET /api/gifs/cache-stats
+   * Get cache statistics for monitoring (admin only)
+   */
+  async getCacheStats(req, res) {
+    try {
+      const giphyStats = giphyService.getCacheStats();
+      const tenorStats = tenorService.getCacheStats();
+      
+      res.json({
+        giphy: {
+          ...giphyStats,
+          hitRate: giphyStats.hits / (giphyStats.hits + giphyStats.misses) || 0,
+        },
+        tenor: {
+          ...tenorStats,
+          hitRate: tenorStats.hits / (tenorStats.hits + tenorStats.misses) || 0,
+        },
+        totalKeys: giphyStats.keys + tenorStats.keys,
+      });
+    } catch (error) {
+      logger.error('Get cache stats error:', error);
+      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+        error: 'Internal Server Error',
+        message: 'Failed to get cache stats',
       });
     }
   }
