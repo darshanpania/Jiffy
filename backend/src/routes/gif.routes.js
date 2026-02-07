@@ -9,31 +9,35 @@ const { validate } = require('../middleware/validator.middleware');
 /**
  * GIF Routes
  * All routes require authentication
- * Stricter rate limiting (10 requests per minute per user)
+ * Stricter rate limiting (10 requests/min per user)
  */
 
 // Apply authentication middleware to all routes
 router.use(authMiddleware);
 
-// Stricter rate limiting for GIF endpoints
+// Stricter rate limiting for GIF endpoints (API quota management)
 const gifRateLimiter = rateLimit({
-  windowMs: 60000, // 1 minute
+  windowMs: 60 * 1000, // 1 minute
   max: 10, // 10 requests per minute per IP
   message: {
     error: 'Too Many Requests',
-    message: 'GIF API rate limit exceeded. Please try again in a minute.',
+    message: 'GIF API rate limit exceeded. Please wait before making more requests.',
   },
   standardHeaders: true,
   legacyHeaders: false,
-  // Use user ID for rate limiting if available
-  keyGenerator: (req) => req.userId || req.ip,
+  // Use user ID from auth for per-user limiting
+  keyGenerator: (req) => {
+    return req.userId || req.ip;
+  },
 });
 
-router.use(gifRateLimiter);
+// Apply stricter rate limiting to search and trending (external API calls)
+router.use('/search', gifRateLimiter);
+router.use('/trending', gifRateLimiter);
 
 /**
  * GET /api/gifs/search
- * Search GIFs across providers
+ * Search GIFs using GIPHY or Tenor
  */
 router.get('/search',
   [
@@ -51,10 +55,14 @@ router.get('/search',
       .optional()
       .isInt({ min: 0 })
       .withMessage('Offset must be >= 0'),
+    query('rating')
+      .optional()
+      .isIn(['g', 'pg', 'pg-13', 'r'])
+      .withMessage('Rating must be g, pg, pg-13, or r'),
     query('provider')
       .optional()
-      .isIn(['auto', 'giphy', 'tenor'])
-      .withMessage('Provider must be auto, giphy, or tenor'),
+      .isIn(['giphy', 'tenor'])
+      .withMessage('Provider must be giphy or tenor'),
     validate,
   ],
   gifController.searchGifs
@@ -74,13 +82,17 @@ router.get('/trending',
       .optional()
       .isInt({ min: 0 })
       .withMessage('Offset must be >= 0'),
+    query('rating')
+      .optional()
+      .isIn(['g', 'pg', 'pg-13', 'r'])
+      .withMessage('Rating must be g, pg, pg-13, or r'),
     query('provider')
       .optional()
-      .isIn(['auto', 'giphy', 'tenor'])
-      .withMessage('Provider must be auto, giphy, or tenor'),
+      .isIn(['giphy', 'tenor'])
+      .withMessage('Provider must be giphy or tenor'),
     validate,
   ],
-  gifController.getTrendingGifs
+  gifController.getTrending
 );
 
 /**
@@ -89,18 +101,10 @@ router.get('/trending',
  */
 router.get('/categories',
   [
-    query('limit')
-      .optional()
-      .isInt({ min: 1, max: 50 })
-      .withMessage('Limit must be 1-50'),
-    query('offset')
-      .optional()
-      .isInt({ min: 0 })
-      .withMessage('Offset must be >= 0'),
     query('provider')
       .optional()
-      .isIn(['auto', 'giphy', 'tenor'])
-      .withMessage('Provider must be auto, giphy, or tenor'),
+      .isIn(['giphy', 'tenor'])
+      .withMessage('Provider must be giphy or tenor'),
     validate,
   ],
   gifController.getCategories
@@ -117,23 +121,24 @@ router.post('/favorites',
       .withMessage('GIF ID is required')
       .isString()
       .withMessage('GIF ID must be string'),
-    body('provider')
-      .isIn(['giphy', 'tenor'])
-      .withMessage('Provider must be giphy or tenor'),
     body('gifUrl')
       .notEmpty()
       .withMessage('GIF URL is required')
       .isURL()
-      .withMessage('Invalid GIF URL'),
+      .withMessage('Invalid GIF URL format'),
     body('title')
       .optional()
       .trim()
       .isLength({ max: 200 })
       .withMessage('Title max 200 characters'),
-    body('thumbnailUrl')
+    body('source')
+      .optional()
+      .isIn(['giphy', 'tenor'])
+      .withMessage('Source must be giphy or tenor'),
+    body('previewUrl')
       .optional()
       .isURL()
-      .withMessage('Invalid thumbnail URL'),
+      .withMessage('Invalid preview URL'),
     validate,
   ],
   gifController.saveFavorite
@@ -160,22 +165,28 @@ router.get('/favorites',
 
 /**
  * DELETE /api/gifs/favorites/:favoriteId
- * Delete favorite GIF
+ * Remove GIF from favorites
  */
 router.delete('/favorites/:favoriteId',
   [
     param('favoriteId')
       .isUUID()
-      .withMessage('Invalid favorite ID'),
+      .withMessage('Invalid favorite ID format'),
     validate,
   ],
   gifController.deleteFavorite
 );
 
 /**
- * GET /api/gifs/cache-stats
- * Get cache statistics (for monitoring)
+ * GET /api/gifs/stats
+ * Get cache statistics (debug/monitoring)
  */
-router.get('/cache-stats', gifController.getCacheStats);
+router.get('/stats', gifController.getStats);
+
+/**
+ * POST /api/gifs/cache/clear
+ * Clear GIF cache (admin only)
+ */
+router.post('/cache/clear', gifController.clearCache);
 
 module.exports = router;
