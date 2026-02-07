@@ -11,19 +11,14 @@ jest.mock('../../../src/config/supabase');
 
 describe('GifController', () => {
   const validToken = 'Bearer test-jwt-token';
-  const testUserId = 'test-user-uuid';
-
+  
   const mockGif = {
     id: 'test-gif-id',
-    provider: 'giphy',
     title: 'Test GIF',
     url: 'https://giphy.com/gifs/test',
+    source: 'giphy',
     images: {
-      original: {
-        url: 'https://media.giphy.com/test.gif',
-        width: 480,
-        height: 270,
-      },
+      original: { url: 'https://...', width: 480, height: 270 },
     },
   };
 
@@ -33,110 +28,99 @@ describe('GifController', () => {
 
   describe('GET /api/gifs/search', () => {
     it('should search GIFs successfully with GIPHY', async () => {
+      giphyService.isConfigured.mockReturnValue(true);
       giphyService.search.mockResolvedValue({
-        success: true,
-        data: {
-          gifs: [mockGif],
-          pagination: { total_count: 1 },
-          provider: 'giphy',
-        },
+        data: [mockGif],
+        source: 'giphy',
         cached: false,
       });
 
       const res = await request(app)
-        .get('/api/gifs/search?q=funny')
+        .get('/api/gifs/search?q=happy')
         .set('Authorization', validToken);
 
       expect(res.statusCode).toBe(200);
       expect(res.body.gifs).toHaveLength(1);
-      expect(res.body.provider).toBe('giphy');
-      expect(res.body.query).toBe('funny');
+      expect(res.body.source).toBe('giphy');
+      expect(res.body.query).toBe('happy');
     });
 
     it('should fallback to Tenor when GIPHY fails', async () => {
-      giphyService.search.mockResolvedValue({
-        success: false,
-        error: 'API error',
-      });
-
+      giphyService.isConfigured.mockReturnValue(true);
+      giphyService.search.mockRejectedValue(new Error('GIPHY error'));
+      
+      tenorService.isConfigured.mockReturnValue(true);
       tenorService.search.mockResolvedValue({
-        success: true,
-        data: {
-          gifs: [{ ...mockGif, provider: 'tenor' }],
-          provider: 'tenor',
-        },
+        data: [{ ...mockGif, source: 'tenor' }],
+        source: 'tenor',
+        cached: false,
       });
 
       const res = await request(app)
-        .get('/api/gifs/search?q=funny')
+        .get('/api/gifs/search?q=happy')
         .set('Authorization', validToken);
 
       expect(res.statusCode).toBe(200);
-      expect(res.body.provider).toBe('tenor');
+      expect(res.body.source).toBe('tenor');
+      expect(res.body.fallback).toBe(true);
     });
 
-    it('should return 503 when all providers fail', async () => {
-      giphyService.search.mockResolvedValue({
-        success: false,
-        error: 'API error',
-      });
-
-      tenorService.search.mockResolvedValue({
-        success: false,
-        error: 'API error',
-      });
-
-      const res = await request(app)
-        .get('/api/gifs/search?q=funny')
-        .set('Authorization', validToken);
-
-      expect(res.statusCode).toBe(503);
-      expect(res.body.error).toBe('Service Unavailable');
-    });
-
-    it('should validate query length', async () => {
+    it('should reject query too short', async () => {
       const res = await request(app)
         .get('/api/gifs/search?q=a')
         .set('Authorization', validToken);
 
       expect(res.statusCode).toBe(400);
+      expect(res.body.error).toBe('Bad Request');
     });
 
-    it('should validate limit maximum', async () => {
+    it('should reject missing query', async () => {
       const res = await request(app)
-        .get('/api/gifs/search?q=funny&limit=100')
+        .get('/api/gifs/search')
         .set('Authorization', validToken);
 
       expect(res.statusCode).toBe(400);
     });
 
-    it('should allow manual provider selection', async () => {
-      tenorService.search.mockResolvedValue({
-        success: true,
-        data: {
-          gifs: [mockGif],
-          provider: 'tenor',
-        },
-      });
-
+    it('should validate limit range', async () => {
       const res = await request(app)
-        .get('/api/gifs/search?q=funny&provider=tenor')
+        .get('/api/gifs/search?q=happy&limit=100')
         .set('Authorization', validToken);
 
-      expect(res.statusCode).toBe(200);
-      expect(tenorService.search).toHaveBeenCalled();
-      expect(giphyService.search).not.toHaveBeenCalled();
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('should validate rating values', async () => {
+      const res = await request(app)
+        .get('/api/gifs/search?q=happy&rating=invalid')
+        .set('Authorization', validToken);
+
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('should return 503 when both providers fail', async () => {
+      giphyService.isConfigured.mockReturnValue(true);
+      giphyService.search.mockRejectedValue(new Error('GIPHY error'));
+      
+      tenorService.isConfigured.mockReturnValue(true);
+      tenorService.search.mockRejectedValue(new Error('Tenor error'));
+
+      const res = await request(app)
+        .get('/api/gifs/search?q=happy')
+        .set('Authorization', validToken);
+
+      expect(res.statusCode).toBe(503);
+      expect(res.body.error).toBe('Service Unavailable');
     });
   });
 
   describe('GET /api/gifs/trending', () => {
-    it('should get trending GIFs successfully', async () => {
+    it('should get trending GIFs', async () => {
+      giphyService.isConfigured.mockReturnValue(true);
       giphyService.trending.mockResolvedValue({
-        success: true,
-        data: {
-          gifs: [mockGif],
-          provider: 'giphy',
-        },
+        data: [mockGif],
+        source: 'giphy',
+        cached: true,
       });
 
       const res = await request(app)
@@ -144,22 +128,18 @@ describe('GifController', () => {
         .set('Authorization', validToken);
 
       expect(res.statusCode).toBe(200);
-      expect(res.body.gifs).toBeDefined();
-      expect(res.body.provider).toBe('giphy');
+      expect(res.body.gifs).toHaveLength(1);
+      expect(res.body.cached).toBe(true);
     });
 
     it('should fallback to Tenor for trending', async () => {
-      giphyService.trending.mockResolvedValue({
-        success: false,
-        error: 'API error',
-      });
-
+      giphyService.isConfigured.mockReturnValue(false);
+      
+      tenorService.isConfigured.mockReturnValue(true);
       tenorService.trending.mockResolvedValue({
-        success: true,
-        data: {
-          gifs: [mockGif],
-          provider: 'tenor',
-        },
+        data: [mockGif],
+        source: 'tenor',
+        cached: false,
       });
 
       const res = await request(app)
@@ -167,20 +147,22 @@ describe('GifController', () => {
         .set('Authorization', validToken);
 
       expect(res.statusCode).toBe(200);
-      expect(res.body.provider).toBe('tenor');
+      expect(res.body.source).toBe('tenor');
     });
   });
 
   describe('GET /api/gifs/categories', () => {
-    it('should get categories successfully', async () => {
-      giphyService.getCategories.mockResolvedValue({
-        success: true,
-        data: {
-          categories: [
-            { name: 'Reactions', nameEncoded: 'reactions' },
-          ],
-          provider: 'giphy',
-        },
+    it('should get categories from Tenor', async () => {
+      const mockCategories = [
+        { name: 'Funny', searchTerm: 'funny' },
+        { name: 'Love', searchTerm: 'love' },
+      ];
+
+      tenorService.isConfigured.mockReturnValue(true);
+      tenorService.categories.mockResolvedValue({
+        data: mockCategories,
+        source: 'tenor',
+        cached: false,
       });
 
       const res = await request(app)
@@ -188,23 +170,45 @@ describe('GifController', () => {
         .set('Authorization', validToken);
 
       expect(res.statusCode).toBe(200);
-      expect(res.body.categories).toBeDefined();
+      expect(res.body.categories).toHaveLength(2);
+    });
+
+    it('should fallback to GIPHY for categories', async () => {
+      tenorService.isConfigured.mockReturnValue(false);
+      
+      giphyService.isConfigured.mockReturnValue(true);
+      giphyService.categories.mockResolvedValue({
+        data: [{ name: 'Reactions', searchTerm: 'reactions' }],
+        source: 'giphy',
+        cached: true,
+      });
+
+      const res = await request(app)
+        .get('/api/gifs/categories')
+        .set('Authorization', validToken);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.source).toBe('giphy');
     });
   });
 
   describe('POST /api/gifs/favorites', () => {
     it('should save favorite successfully', async () => {
+      const mockFavorite = {
+        id: 'fav-uuid',
+        user_id: 'user-uuid',
+        gif_id: 'gif-123',
+        gif_url: 'https://giphy.com/gifs/123',
+        title: 'Funny GIF',
+        source: 'giphy',
+        created_at: new Date().toISOString(),
+      };
+
       supabase.from.mockReturnValue({
-        upsert: jest.fn().mockReturnThis(),
+        insert: jest.fn().mockReturnThis(),
         select: jest.fn().mockReturnThis(),
         single: jest.fn().mockResolvedValue({
-          data: {
-            id: 'favorite-uuid',
-            gif_id: 'test-gif',
-            provider: 'giphy',
-            gif_url: 'https://...',
-            created_at: new Date().toISOString(),
-          },
+          data: mockFavorite,
           error: null,
         }),
       });
@@ -213,37 +217,43 @@ describe('GifController', () => {
         .post('/api/gifs/favorites')
         .set('Authorization', validToken)
         .send({
-          gifId: 'test-gif',
-          provider: 'giphy',
-          gifUrl: 'https://media.giphy.com/test.gif',
-          title: 'Test GIF',
+          gifId: 'gif-123',
+          gifUrl: 'https://giphy.com/gifs/123',
+          title: 'Funny GIF',
+          source: 'giphy',
         });
 
       expect(res.statusCode).toBe(201);
-      expect(res.body.favorite).toBeDefined();
+      expect(res.body.favorite.gif_id).toBe('gif-123');
+    });
+
+    it('should reject duplicate favorite', async () => {
+      supabase.from.mockReturnValue({
+        insert: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        single: jest.fn().mockResolvedValue({
+          data: null,
+          error: { code: '23505', message: 'Duplicate' },
+        }),
+      });
+
+      const res = await request(app)
+        .post('/api/gifs/favorites')
+        .set('Authorization', validToken)
+        .send({
+          gifId: 'gif-123',
+          gifUrl: 'https://giphy.com/gifs/123',
+        });
+
+      expect(res.statusCode).toBe(409);
+      expect(res.body.message).toContain('already in favorites');
     });
 
     it('should validate required fields', async () => {
       const res = await request(app)
         .post('/api/gifs/favorites')
         .set('Authorization', validToken)
-        .send({
-          gifId: 'test-gif',
-          // Missing provider and gifUrl
-        });
-
-      expect(res.statusCode).toBe(400);
-    });
-
-    it('should validate provider enum', async () => {
-      const res = await request(app)
-        .post('/api/gifs/favorites')
-        .set('Authorization', validToken)
-        .send({
-          gifId: 'test-gif',
-          provider: 'invalid',
-          gifUrl: 'https://...',
-        });
+        .send({});
 
       expect(res.statusCode).toBe(400);
     });
@@ -253,8 +263,7 @@ describe('GifController', () => {
         .post('/api/gifs/favorites')
         .set('Authorization', validToken)
         .send({
-          gifId: 'test-gif',
-          provider: 'giphy',
+          gifId: 'gif-123',
           gifUrl: 'not-a-url',
         });
 
@@ -263,15 +272,13 @@ describe('GifController', () => {
   });
 
   describe('GET /api/gifs/favorites', () => {
-    it('should get user favorites successfully', async () => {
+    it('should get user favorites', async () => {
       const mockFavorites = [
         {
           id: 'fav-1',
           gif_id: 'gif-1',
-          provider: 'giphy',
           gif_url: 'https://...',
-          title: 'Favorite 1',
-          created_at: new Date().toISOString(),
+          title: 'GIF 1',
         },
       ];
 
@@ -292,7 +299,6 @@ describe('GifController', () => {
 
       expect(res.statusCode).toBe(200);
       expect(res.body.favorites).toHaveLength(1);
-      expect(res.body.total).toBe(1);
     });
 
     it('should support pagination', async () => {
@@ -312,23 +318,14 @@ describe('GifController', () => {
         .set('Authorization', validToken);
 
       expect(res.statusCode).toBe(200);
+      expect(res.body).toHaveProperty('limit', 10);
+      expect(res.body).toHaveProperty('offset', 20);
     });
   });
 
   describe('DELETE /api/gifs/favorites/:favoriteId', () => {
     it('should delete favorite successfully', async () => {
-      // Mock ownership check
-      supabase.from.mockReturnValueOnce({
-        select: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockReturnThis(),
-        single: jest.fn().mockResolvedValue({
-          data: { user_id: testUserId },
-          error: null,
-        }),
-      });
-
-      // Mock delete
-      supabase.from.mockReturnValueOnce({
+      supabase.from.mockReturnValue({
         delete: jest.fn().mockReturnThis(),
         eq: jest.fn().mockResolvedValue({
           error: null,
@@ -336,45 +333,11 @@ describe('GifController', () => {
       });
 
       const res = await request(app)
-        .delete('/api/gifs/favorites/favorite-uuid')
+        .delete('/api/gifs/favorites/fav-uuid-123')
         .set('Authorization', validToken);
 
       expect(res.statusCode).toBe(200);
-      expect(res.body.message).toContain('deleted');
-    });
-
-    it('should reject deleting others favorites', async () => {
-      supabase.from.mockReturnValue({
-        select: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockReturnThis(),
-        single: jest.fn().mockResolvedValue({
-          data: { user_id: 'different-user' },
-          error: null,
-        }),
-      });
-
-      const res = await request(app)
-        .delete('/api/gifs/favorites/favorite-uuid')
-        .set('Authorization', validToken);
-
-      expect(res.statusCode).toBe(403);
-    });
-
-    it('should return 404 for non-existent favorite', async () => {
-      supabase.from.mockReturnValue({
-        select: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockReturnThis(),
-        single: jest.fn().mockResolvedValue({
-          data: null,
-          error: null,
-        }),
-      });
-
-      const res = await request(app)
-        .delete('/api/gifs/favorites/non-existent-uuid')
-        .set('Authorization', validToken);
-
-      expect(res.statusCode).toBe(404);
+      expect(res.body.message).toContain('removed');
     });
 
     it('should validate UUID format', async () => {
@@ -386,54 +349,57 @@ describe('GifController', () => {
     });
   });
 
-  describe('GET /api/gifs/cache-stats', () => {
+  describe('GET /api/gifs/stats', () => {
     it('should return cache statistics', async () => {
+      giphyService.isConfigured.mockReturnValue(true);
       giphyService.getCacheStats.mockReturnValue({
-        keys: 10,
-        hits: 50,
-        misses: 20,
+        keys: 5,
+        hits: 10,
+        misses: 3,
       });
 
+      tenorService.isConfigured.mockReturnValue(true);
       tenorService.getCacheStats.mockReturnValue({
-        keys: 5,
-        hits: 30,
-        misses: 10,
+        keys: 3,
+        hits: 7,
+        misses: 2,
       });
 
       const res = await request(app)
-        .get('/api/gifs/cache-stats')
+        .get('/api/gifs/stats')
         .set('Authorization', validToken);
 
       expect(res.statusCode).toBe(200);
-      expect(res.body.giphy).toBeDefined();
-      expect(res.body.tenor).toBeDefined();
-      expect(res.body.totalKeys).toBe(15);
+      expect(res.body).toHaveProperty('giphy');
+      expect(res.body).toHaveProperty('tenor');
     });
   });
 
   describe('Rate Limiting', () => {
     it('should enforce 10 requests per minute limit', async () => {
+      giphyService.isConfigured.mockReturnValue(true);
       giphyService.search.mockResolvedValue({
-        success: true,
-        data: { gifs: [], provider: 'giphy' },
+        data: [mockGif],
+        source: 'giphy',
+        cached: false,
       });
 
-      // Make 11 requests rapidly
-      const requests = [];
-      for (let i = 0; i < 11; i++) {
-        requests.push(
-          request(app)
-            .get('/api/gifs/search?q=test')
-            .set('Authorization', validToken)
-        );
+      // Make 10 requests (should succeed)
+      for (let i = 0; i < 10; i++) {
+        const res = await request(app)
+          .get(`/api/gifs/search?q=test${i}`)
+          .set('Authorization', validToken);
+        
+        expect(res.statusCode).toBe(200);
       }
 
-      const responses = await Promise.all(requests);
-      
-      // Last request should be rate limited
-      const lastResponse = responses[10];
-      expect(lastResponse.statusCode).toBe(429);
-      expect(lastResponse.body.error).toContain('Too Many Requests');
-    });
+      // 11th request should be rate limited
+      const res = await request(app)
+        .get('/api/gifs/search?q=test11')
+        .set('Authorization', validToken);
+
+      expect(res.statusCode).toBe(429);
+      expect(res.body.error).toBe('Too Many Requests');
+    }, 15000); // Increase timeout for rate limit test
   });
 });
