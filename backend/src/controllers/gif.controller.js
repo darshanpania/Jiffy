@@ -7,51 +7,83 @@ const { StatusCodes } = require('http-status-codes');
 /**
  * GIF Controller
  * Handles GIF search, trending, categories, and favorites
- * Uses GIPHY as primary provider with Tenor as fallback
+ * Integrates GIPHY and Tenor with automatic fallback
  */
 class GifController {
   /**
    * GET /api/gifs/search
-   * Search GIFs across providers with automatic fallback
+   * Search GIFs with automatic fallback (GIPHY → Tenor)
    */
   async searchGifs(req, res) {
     try {
-      const { q: query, limit = 25, offset = 0, provider = 'auto' } = req.query;
+      const { q: query, limit = 25, offset = 0, rating = 'g', provider } = req.query;
       
-      logger.debug(`GIF search: "${query}" provider=${provider}`);
+      logger.debug(`GIF search: "${query}" (limit: ${limit}, offset: ${offset})`);
       
       let result;
+      let primaryError = null;
       
-      if (provider === 'tenor') {
-        // Use Tenor directly
-        result = await tenorService.search(query, parseInt(limit), offset);
-      } else if (provider === 'giphy') {
-        // Use GIPHY directly
-        result = await giphyService.search(query, parseInt(limit), parseInt(offset));
-      } else {
-        // Auto mode: Try GIPHY first, fallback to Tenor
-        result = await giphyService.search(query, parseInt(limit), parseInt(offset));
-        
-        if (!result.success) {
-          logger.warn('GIPHY failed, falling back to Tenor');
-          result = await tenorService.search(query, parseInt(limit), offset);
+      // Try specified provider or GIPHY first
+      if (!provider || provider === 'giphy') {
+        try {
+          if (giphyService.isConfigured()) {
+            result = await giphyService.search(query, parseInt(limit), parseInt(offset), rating);
+            
+            if (result.data && result.data.length > 0) {
+              return res.json({
+                gifs: result.data,
+                count: result.data.length,
+                query,
+                limit: parseInt(limit),
+                offset: parseInt(offset),
+                source: result.source,
+                cached: result.cached,
+              });
+            }
+          } else {
+            logger.debug('GIPHY not configured, trying Tenor');
+          }
+        } catch (error) {
+          logger.warn('GIPHY search failed, trying fallback:', error.message);
+          primaryError = error;
         }
       }
       
-      if (!result.success) {
-        logger.error('All GIF providers failed:', result.error);
-        return res.status(StatusCodes.SERVICE_UNAVAILABLE).json({
-          error: 'Service Unavailable',
-          message: 'GIF search service is temporarily unavailable',
-        });
+      // Fallback to Tenor if GIPHY failed or not configured
+      if (!provider || provider === 'tenor' || primaryError) {
+        try {
+          if (tenorService.isConfigured()) {
+            const contentFilter = rating === 'g' ? 'high' : 'medium';
+            result = await tenorService.search(query, parseInt(limit), parseInt(offset), contentFilter);
+            
+            return res.json({
+              gifs: result.data,
+              count: result.data.length,
+              query,
+              limit: parseInt(limit),
+              offset: parseInt(offset),
+              source: result.source,
+              cached: result.cached,
+              fallback: !!primaryError,
+            });
+          } else {
+            logger.error('Tenor not configured either');
+          }
+        } catch (error) {
+          logger.error('Tenor search also failed:', error.message);
+          
+          return res.status(StatusCodes.SERVICE_UNAVAILABLE).json({
+            error: 'Service Unavailable',
+            message: 'GIF search is temporarily unavailable',
+            details: 'Both GIPHY and Tenor services failed',
+          });
+        }
       }
       
-      logger.info(`GIF search: "${query}" → ${result.data.gifs.length} results (${result.data.provider})`);
-      
-      res.json({
-        ...result.data,
-        cached: result.cached || false,
-        query,
+      // If we get here, no provider is configured
+      return res.status(StatusCodes.SERVICE_UNAVAILABLE).json({
+        error: 'Service Unavailable',
+        message: 'GIF service not configured',
       });
     } catch (error) {
       logger.error('Search GIFs error:', error);
@@ -66,43 +98,69 @@ class GifController {
    * GET /api/gifs/trending
    * Get trending GIFs with automatic fallback
    */
-  async getTrendingGifs(req, res) {
+  async getTrending(req, res) {
     try {
-      const { limit = 25, offset = 0, provider = 'auto' } = req.query;
+      const { limit = 25, offset = 0, rating = 'g', provider } = req.query;
       
-      logger.debug(`GIF trending: limit=${limit} provider=${provider}`);
+      logger.debug(`GIF trending request (limit: ${limit})`);
       
       let result;
+      let primaryError = null;
       
-      if (provider === 'tenor') {
-        result = await tenorService.trending(parseInt(limit), offset);
-      } else if (provider === 'giphy') {
-        result = await giphyService.trending(parseInt(limit), parseInt(offset));
-      } else {
-        // Auto mode: Try GIPHY first
-        result = await giphyService.trending(parseInt(limit), parseInt(offset));
-        
-        if (!result.success) {
-          logger.warn('GIPHY failed, falling back to Tenor');
-          result = await tenorService.trending(parseInt(limit), offset);
+      // Try GIPHY first
+      if (!provider || provider === 'giphy') {
+        try {
+          if (giphyService.isConfigured()) {
+            result = await giphyService.trending(parseInt(limit), parseInt(offset), rating);
+            
+            return res.json({
+              gifs: result.data,
+              count: result.data.length,
+              limit: parseInt(limit),
+              offset: parseInt(offset),
+              source: result.source,
+              cached: result.cached,
+            });
+          }
+        } catch (error) {
+          logger.warn('GIPHY trending failed, trying fallback:', error.message);
+          primaryError = error;
         }
       }
       
-      if (!result.success) {
-        return res.status(StatusCodes.SERVICE_UNAVAILABLE).json({
-          error: 'Service Unavailable',
-          message: 'GIF trending service is temporarily unavailable',
-        });
+      // Fallback to Tenor
+      if (!provider || provider === 'tenor' || primaryError) {
+        try {
+          if (tenorService.isConfigured()) {
+            const contentFilter = rating === 'g' ? 'high' : 'medium';
+            result = await tenorService.trending(parseInt(limit), parseInt(offset), contentFilter);
+            
+            return res.json({
+              gifs: result.data,
+              count: result.data.length,
+              limit: parseInt(limit),
+              offset: parseInt(offset),
+              source: result.source,
+              cached: result.cached,
+              fallback: !!primaryError,
+            });
+          }
+        } catch (error) {
+          logger.error('Tenor trending also failed:', error.message);
+          
+          return res.status(StatusCodes.SERVICE_UNAVAILABLE).json({
+            error: 'Service Unavailable',
+            message: 'Trending GIFs unavailable',
+          });
+        }
       }
       
-      logger.info(`GIF trending → ${result.data.gifs.length} results (${result.data.provider})`);
-      
-      res.json({
-        ...result.data,
-        cached: result.cached || false,
+      return res.status(StatusCodes.SERVICE_UNAVAILABLE).json({
+        error: 'Service Unavailable',
+        message: 'GIF service not configured',
       });
     } catch (error) {
-      logger.error('Trending GIFs error:', error);
+      logger.error('Get trending error:', error);
       res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
         error: 'Internal Server Error',
         message: 'Failed to get trending GIFs',
@@ -116,38 +174,49 @@ class GifController {
    */
   async getCategories(req, res) {
     try {
-      const { limit = 25, offset = 0, provider = 'auto' } = req.query;
+      const { provider } = req.query;
       
-      logger.debug(`GIF categories: limit=${limit} provider=${provider}`);
+      logger.debug('GIF categories request');
       
       let result;
       
-      if (provider === 'tenor') {
-        result = await tenorService.getCategories(parseInt(limit), offset);
-      } else if (provider === 'giphy') {
-        result = await giphyService.getCategories(parseInt(limit), parseInt(offset));
-      } else {
-        // Auto mode: Try GIPHY first
-        result = await giphyService.getCategories(parseInt(limit), parseInt(offset));
-        
-        if (!result.success) {
-          logger.warn('GIPHY failed, falling back to Tenor');
-          result = await tenorService.getCategories(parseInt(limit), offset);
+      // Try Tenor first (has better categories API)
+      if (!provider || provider === 'tenor') {
+        try {
+          if (tenorService.isConfigured()) {
+            result = await tenorService.categories();
+            
+            return res.json({
+              categories: result.data,
+              count: result.data.length,
+              source: result.source,
+              cached: result.cached,
+            });
+          }
+        } catch (error) {
+          logger.warn('Tenor categories failed, trying GIPHY:', error.message);
         }
       }
       
-      if (!result.success) {
-        return res.status(StatusCodes.SERVICE_UNAVAILABLE).json({
-          error: 'Service Unavailable',
-          message: 'GIF categories service is temporarily unavailable',
-        });
+      // Fallback to GIPHY
+      try {
+        if (giphyService.isConfigured()) {
+          result = await giphyService.categories();
+          
+          return res.json({
+            categories: result.data,
+            count: result.data.length,
+            source: result.source,
+            cached: result.cached,
+          });
+        }
+      } catch (error) {
+        logger.error('GIPHY categories also failed:', error.message);
       }
       
-      logger.info(`GIF categories → ${result.data.categories.length} results (${result.data.provider})`);
-      
-      res.json({
-        ...result.data,
-        cached: result.cached || false,
+      return res.status(StatusCodes.SERVICE_UNAVAILABLE).json({
+        error: 'Service Unavailable',
+        message: 'Categories unavailable',
       });
     } catch (error) {
       logger.error('Get categories error:', error);
@@ -165,47 +234,51 @@ class GifController {
   async saveFavorite(req, res) {
     try {
       const userId = req.userId;
-      const { gifId, provider, gifUrl, title, thumbnailUrl } = req.body;
+      const { gifId, gifUrl, title, source, previewUrl } = req.body;
       
-      logger.debug(`Saving favorite: ${gifId} (${provider}) for ${userId}`);
+      logger.debug(`Saving favorite: ${gifId} for user ${userId}`);
       
-      // Insert favorite (upsert to prevent duplicates)
       const { data: favorite, error } = await supabase
         .from('gif_favorites')
-        .upsert({
+        .insert({
           user_id: userId,
           gif_id: gifId,
-          provider: provider,
           gif_url: gifUrl,
           title: title || '',
-          thumbnail_url: thumbnailUrl,
-        }, {
-          onConflict: 'user_id,gif_id,provider',
-          ignoreDuplicates: false,
+          source: source || 'giphy',
+          preview_url: previewUrl || gifUrl,
         })
         .select()
         .single();
       
       if (error) {
+        // Check for duplicate
+        if (error.code === '23505') {
+          return res.status(StatusCodes.CONFLICT).json({
+            error: 'Conflict',
+            message: 'GIF already in favorites',
+          });
+        }
+        
         logger.error('Save favorite error:', error);
         return res.status(StatusCodes.BAD_REQUEST).json({
           error: 'Bad Request',
-          message: 'Failed to save favorite',
+          message: error.message,
         });
       }
       
       logger.info(`Favorite saved: ${favorite.id}`);
       
       res.status(StatusCodes.CREATED).json({
-        message: 'GIF saved to favorites',
+        message: 'GIF added to favorites',
         favorite: {
           id: favorite.id,
-          gifId: favorite.gif_id,
-          provider: favorite.provider,
-          gifUrl: favorite.gif_url,
+          gif_id: favorite.gif_id,
+          gif_url: favorite.gif_url,
           title: favorite.title,
-          thumbnailUrl: favorite.thumbnail_url,
-          createdAt: favorite.created_at,
+          source: favorite.source,
+          preview_url: favorite.preview_url,
+          created_at: favorite.created_at,
         },
       });
     } catch (error) {
@@ -226,7 +299,7 @@ class GifController {
       const userId = req.userId;
       const { limit = 50, offset = 0 } = req.query;
       
-      logger.debug(`Getting favorites for: ${userId}`);
+      logger.debug(`Getting favorites for user: ${userId}`);
       
       const { data: favorites, error, count } = await supabase
         .from('gif_favorites')
@@ -243,19 +316,11 @@ class GifController {
         });
       }
       
-      logger.info(`Favorites retrieved: ${userId} → ${favorites.length} favorites`);
+      logger.info(`Favorites retrieved: ${userId} → ${favorites?.length || 0} GIFs`);
       
       res.json({
-        favorites: favorites.map(fav => ({
-          id: fav.id,
-          gifId: fav.gif_id,
-          provider: fav.provider,
-          gifUrl: fav.gif_url,
-          title: fav.title,
-          thumbnailUrl: fav.thumbnail_url,
-          createdAt: fav.created_at,
-        })),
-        count: favorites.length,
+        favorites: favorites || [],
+        count: favorites?.length || 0,
         total: count,
         limit: parseInt(limit),
         offset: parseInt(offset),
@@ -271,41 +336,21 @@ class GifController {
   
   /**
    * DELETE /api/gifs/favorites/:favoriteId
-   * Remove GIF from user's favorites
+   * Remove GIF from favorites
    */
   async deleteFavorite(req, res) {
     try {
       const userId = req.userId;
       const { favoriteId } = req.params;
       
-      logger.debug(`Deleting favorite: ${favoriteId} for ${userId}`);
+      logger.debug(`Deleting favorite: ${favoriteId} for user ${userId}`);
       
-      // Verify ownership before deleting
-      const { data: favorite } = await supabase
-        .from('gif_favorites')
-        .select('user_id')
-        .eq('id', favoriteId)
-        .single();
-      
-      if (!favorite) {
-        return res.status(StatusCodes.NOT_FOUND).json({
-          error: 'Not Found',
-          message: 'Favorite not found',
-        });
-      }
-      
-      if (favorite.user_id !== userId) {
-        return res.status(StatusCodes.FORBIDDEN).json({
-          error: 'Forbidden',
-          message: 'You can only delete your own favorites',
-        });
-      }
-      
-      // Delete favorite
+      // Delete only if belongs to user
       const { error } = await supabase
         .from('gif_favorites')
         .delete()
-        .eq('id', favoriteId);
+        .eq('id', favoriteId)
+        .eq('user_id', userId);
       
       if (error) {
         logger.error('Delete favorite error:', error);
@@ -318,7 +363,7 @@ class GifController {
       logger.info(`Favorite deleted: ${favoriteId}`);
       
       res.json({
-        message: 'Favorite deleted successfully',
+        message: 'Favorite removed successfully',
         favoriteId,
       });
     } catch (error) {
@@ -331,30 +376,54 @@ class GifController {
   }
   
   /**
-   * GET /api/gifs/cache-stats
-   * Get cache statistics for monitoring (admin only)
+   * GET /api/gifs/stats
+   * Get cache statistics (admin/debug endpoint)
    */
-  async getCacheStats(req, res) {
+  async getStats(req, res) {
     try {
       const giphyStats = giphyService.getCacheStats();
       const tenorStats = tenorService.getCacheStats();
       
       res.json({
         giphy: {
-          ...giphyStats,
-          hitRate: giphyStats.hits / (giphyStats.hits + giphyStats.misses) || 0,
+          configured: giphyService.isConfigured(),
+          cache: giphyStats,
         },
         tenor: {
-          ...tenorStats,
-          hitRate: tenorStats.hits / (tenorStats.hits + tenorStats.misses) || 0,
+          configured: tenorService.isConfigured(),
+          cache: tenorStats,
         },
-        totalKeys: giphyStats.keys + tenorStats.keys,
+        timestamp: new Date().toISOString(),
       });
     } catch (error) {
-      logger.error('Get cache stats error:', error);
+      logger.error('Get stats error:', error);
       res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
         error: 'Internal Server Error',
-        message: 'Failed to get cache stats',
+        message: 'Failed to get stats',
+      });
+    }
+  }
+  
+  /**
+   * POST /api/gifs/cache/clear
+   * Clear GIF cache (admin endpoint)
+   */
+  async clearCache(req, res) {
+    try {
+      giphyService.clearCache();
+      tenorService.clearCache();
+      
+      logger.info('GIF cache cleared by admin');
+      
+      res.json({
+        message: 'Cache cleared successfully',
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      logger.error('Clear cache error:', error);
+      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+        error: 'Internal Server Error',
+        message: 'Failed to clear cache',
       });
     }
   }
