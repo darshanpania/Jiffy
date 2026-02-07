@@ -5,27 +5,19 @@ const config = require('../config/config');
 
 /**
  * Tenor Service
- * Handles Tenor API integration with caching (fallback provider)
+ * Integration with Tenor API (Google) for GIF search and trending
+ * Used as fallback when GIPHY fails
  */
 class TenorService {
   constructor() {
+    this.baseURL = 'https://tenor.googleapis.com/v2';
     this.apiKey = config.tenor.apiKey;
-    this.baseUrl = 'https://tenor.googleapis.com/v2';
-    this.clientKey = config.tenor.clientKey || 'jiffy';
-    
-    // Cache with 10 minute TTL
-    this.cache = new NodeCache({
-      stdTTL: 600, // 10 minutes
-      checkperiod: 120,
-      useClones: false,
-    });
-    
-    this.axiosInstance = axios.create({
-      baseURL: this.baseUrl,
+    this.cache = new NodeCache({ stdTTL: 600 }); // 10 minute cache
+    this.client = axios.create({
+      baseURL: this.baseURL,
       timeout: 10000,
       params: {
         key: this.apiKey,
-        client_key: this.clientKey,
       },
     });
     
@@ -33,247 +25,243 @@ class TenorService {
   }
   
   /**
-   * Generate cache key
+   * Check if Tenor is configured
    */
-  getCacheKey(operation, params) {
-    const paramStr = JSON.stringify(params);
-    return `tenor:${operation}:${paramStr}`;
+  isConfigured() {
+    return !!this.apiKey && this.apiKey !== '';
   }
   
   /**
    * Search GIFs
    */
-  async search(query, limit = 25, pos = null, contentFilter = 'medium') {
+  async search(query, limit = 25, offset = 0, contentFilter = 'high') {
     try {
-      const cacheKey = this.getCacheKey('search', { query, limit, pos, contentFilter });
+      if (!this.isConfigured()) {
+        throw new Error('Tenor API key not configured');
+      }
       
-      // Check cache
+      const cacheKey = `search:${query}:${limit}:${offset}:${contentFilter}`;
       const cached = this.cache.get(cacheKey);
+      
       if (cached) {
-        logger.debug(`Tenor cache hit: ${cacheKey}`);
-        return { success: true, data: cached, cached: true };
+        logger.debug(`Tenor search cache hit: ${query}`);
+        return { data: cached, source: 'tenor', cached: true };
       }
       
-      logger.debug(`Tenor search: "${query}" limit=${limit}`);
+      logger.debug(`Tenor search: ${query}`);
       
-      const params = {
-        q: query,
-        limit,
-        contentfilter: contentFilter,
-        media_filter: 'gif',
-        ar_range: 'all',
-      };
+      const response = await this.client.get('/search', {
+        params: {
+          q: query,
+          limit,
+          pos: offset, // Tenor uses 'pos' instead of 'offset'
+          contentfilter: contentFilter,
+          media_filter: 'gif',
+          locale: 'en_US',
+        },
+      });
       
-      if (pos) {
-        params.pos = pos;
-      }
+      const formatted = this.formatSearchResponse(response.data);
+      this.cache.set(cacheKey, formatted);
       
-      const response = await this.axiosInstance.get('/search', { params });
+      logger.info(`Tenor search success: ${query} → ${formatted.length} results`);
       
-      const gifs = this.formatGifs(response.data.results);
-      const result = {
-        gifs,
-        next: response.data.next || null,
-        provider: 'tenor',
-      };
-      
-      // Cache result
-      this.cache.set(cacheKey, result);
-      
-      logger.info(`Tenor search: "${query}" → ${gifs.length} results`);
-      
-      return { success: true, data: result, cached: false };
+      return { data: formatted, source: 'tenor', cached: false };
     } catch (error) {
       logger.error('Tenor search error:', error.message);
-      return {
-        success: false,
-        error: error.message,
-        provider: 'tenor',
-      };
+      throw error;
     }
   }
   
   /**
    * Get trending GIFs
    */
-  async trending(limit = 25, pos = null, contentFilter = 'medium') {
+  async trending(limit = 25, offset = 0, contentFilter = 'high') {
     try {
-      const cacheKey = this.getCacheKey('trending', { limit, pos, contentFilter });
+      if (!this.isConfigured()) {
+        throw new Error('Tenor API key not configured');
+      }
       
-      // Check cache
+      const cacheKey = `trending:${limit}:${offset}:${contentFilter}`;
       const cached = this.cache.get(cacheKey);
+      
       if (cached) {
-        logger.debug(`Tenor trending cache hit`);
-        return { success: true, data: cached, cached: true };
+        logger.debug('Tenor trending cache hit');
+        return { data: cached, source: 'tenor', cached: true };
       }
       
-      logger.debug(`Tenor trending: limit=${limit}`);
+      logger.debug('Tenor trending request');
       
-      const params = {
-        limit,
-        contentfilter: contentFilter,
-        media_filter: 'gif',
-      };
+      const response = await this.client.get('/featured', {
+        params: {
+          limit,
+          pos: offset,
+          contentfilter: contentFilter,
+          media_filter: 'gif',
+        },
+      });
       
-      if (pos) {
-        params.pos = pos;
-      }
+      const formatted = this.formatSearchResponse(response.data);
+      this.cache.set(cacheKey, formatted);
       
-      const response = await this.axiosInstance.get('/featured', { params });
+      logger.info(`Tenor trending success: ${formatted.length} GIFs`);
       
-      const gifs = this.formatGifs(response.data.results);
-      const result = {
-        gifs,
-        next: response.data.next || null,
-        provider: 'tenor',
-      };
-      
-      // Cache result
-      this.cache.set(cacheKey, result);
-      
-      logger.info(`Tenor trending → ${gifs.length} results`);
-      
-      return { success: true, data: result, cached: false };
+      return { data: formatted, source: 'tenor', cached: false };
     } catch (error) {
       logger.error('Tenor trending error:', error.message);
-      return {
-        success: false,
-        error: error.message,
-        provider: 'tenor',
-      };
+      throw error;
     }
   }
   
   /**
    * Get GIF categories
    */
-  async getCategories(limit = 25, pos = null) {
+  async categories() {
     try {
-      const cacheKey = this.getCacheKey('categories', { limit, pos });
+      if (!this.isConfigured()) {
+        throw new Error('Tenor API key not configured');
+      }
       
-      // Check cache
+      const cacheKey = 'categories';
       const cached = this.cache.get(cacheKey);
+      
       if (cached) {
-        logger.debug(`Tenor categories cache hit`);
-        return { success: true, data: cached, cached: true };
+        logger.debug('Tenor categories cache hit');
+        return { data: cached, source: 'tenor', cached: true };
       }
       
-      logger.debug(`Tenor categories: limit=${limit}`);
+      logger.debug('Tenor categories request');
       
-      const params = {
-        limit,
-        contentfilter: 'medium',
-      };
+      const response = await this.client.get('/categories', {
+        params: {
+          locale: 'en_US',
+        },
+      });
       
-      if (pos) {
-        params.pos = pos;
-      }
+      const categories = response.data.tags?.map(tag => ({
+        name: tag.name || tag.searchterm,
+        searchTerm: tag.searchterm,
+        image: tag.image || null,
+      })) || [];
       
-      const response = await this.axiosInstance.get('/categories', { params });
+      this.cache.set(cacheKey, categories, 3600); // Cache for 1 hour
       
-      const categories = response.data.tags.map(tag => ({
-        name: tag.searchterm,
-        nameEncoded: encodeURIComponent(tag.searchterm),
-        image: tag.image,
-        path: tag.path,
-      }));
+      logger.info(`Tenor categories success: ${categories.length} categories`);
       
-      const result = {
-        categories,
-        provider: 'tenor',
-      };
-      
-      // Cache for 30 minutes
-      this.cache.set(cacheKey, result, 1800);
-      
-      logger.info(`Tenor categories → ${categories.length} results`);
-      
-      return { success: true, data: result, cached: false };
+      return { data: categories, source: 'tenor', cached: false };
     } catch (error) {
       logger.error('Tenor categories error:', error.message);
-      return {
-        success: false,
-        error: error.message,
-        provider: 'tenor',
-      };
+      throw error;
     }
   }
   
   /**
-   * Format single GIF to unified format
+   * Get trending search terms
+   */
+  async trendingTerms() {
+    try {
+      if (!this.isConfigured()) {
+        throw new Error('Tenor API key not configured');
+      }
+      
+      const cacheKey = 'trending_terms';
+      const cached = this.cache.get(cacheKey);
+      
+      if (cached) {
+        return { data: cached, source: 'tenor', cached: true };
+      }
+      
+      const response = await this.client.get('/trending_terms', {
+        params: {
+          locale: 'en_US',
+        },
+      });
+      
+      const terms = response.data.results || [];
+      this.cache.set(cacheKey, terms, 1800); // Cache for 30 min
+      
+      logger.info(`Tenor trending terms: ${terms.length} terms`);
+      
+      return { data: terms, source: 'tenor', cached: false };
+    } catch (error) {
+      logger.error('Tenor trending terms error:', error.message);
+      throw error;
+    }
+  }
+  
+  /**
+   * Format Tenor search response to unified format
+   */
+  formatSearchResponse(response) {
+    if (!response || !response.results) {
+      return [];
+    }
+    
+    return response.results.map(gif => this.formatGif(gif));
+  }
+  
+  /**
+   * Format single Tenor GIF to unified format
    */
   formatGif(gif) {
-    if (!gif) return null;
-    
     const media = gif.media_formats || {};
     
     return {
       id: gif.id,
-      provider: 'tenor',
       title: gif.content_description || gif.h1_title || '',
-      url: gif.itemurl || gif.url,
-      embedUrl: gif.itemurl,
-      rating: gif.content_rating || 'g',
+      url: gif.itemurl || gif.url || '',
+      embedUrl: gif.itemurl || '',
+      source: 'tenor',
       images: {
         original: {
-          url: media.gif?.url || media.mediumgif?.url,
-          width: parseInt(media.gif?.dims?.[0] || 0),
-          height: parseInt(media.gif?.dims?.[1] || 0),
-          size: parseInt(media.gif?.size || 0),
-        },
-        downsized: {
-          url: media.tinygif?.url || media.nanogif?.url,
-          width: parseInt(media.tinygif?.dims?.[0] || 0),
-          height: parseInt(media.tinygif?.dims?.[1] || 0),
-          size: parseInt(media.tinygif?.size || 0),
-        },
-        preview: {
-          url: media.nanogif?.url || media.tinygif?.url,
-          width: parseInt(media.nanogif?.dims?.[0] || 0),
-          height: parseInt(media.nanogif?.dims?.[1] || 0),
+          url: media.gif?.url || '',
+          width: media.gif?.dims?.[0] || 0,
+          height: media.gif?.dims?.[1] || 0,
+          size: media.gif?.size || 0,
         },
         fixed_height: {
-          url: media.mediumgif?.url,
-          width: parseInt(media.mediumgif?.dims?.[0] || 0),
-          height: parseInt(media.mediumgif?.dims?.[1] || 0),
+          url: media.mediumgif?.url || media.tinygif?.url || '',
+          width: media.mediumgif?.dims?.[0] || 0,
+          height: media.mediumgif?.dims?.[1] || 0,
         },
         fixed_width: {
-          url: media.tinygif?.url,
-          width: parseInt(media.tinygif?.dims?.[0] || 0),
-          height: parseInt(media.tinygif?.dims?.[1] || 0),
+          url: media.nanogif?.url || media.tinygif?.url || '',
+          width: media.nanogif?.dims?.[0] || 0,
+          height: media.nanogif?.dims?.[1] || 0,
+        },
+        preview: {
+          url: media.tinygif?.url || media.nanogif?.url || '',
+          width: media.tinygif?.dims?.[0] || 0,
+          height: media.tinygif?.dims?.[1] || 0,
+        },
+        downsized: {
+          url: media.loopedmp4?.url || media.mp4?.url || '',
+          width: media.loopedmp4?.dims?.[0] || 0,
+          height: media.loopedmp4?.dims?.[1] || 0,
+          size: media.loopedmp4?.size || 0,
         },
       },
-      user: null, // Tenor doesn't provide user info
+      username: gif.author || '',
+      rating: gif.content_rating || 'g',
+      createDate: gif.created || '',
+      tags: gif.tags || [],
     };
-  }
-  
-  /**
-   * Format multiple GIFs
-   */
-  formatGifs(gifs) {
-    if (!Array.isArray(gifs)) return [];
-    return gifs.map(gif => this.formatGif(gif)).filter(Boolean);
   }
   
   /**
    * Clear cache
    */
   clearCache() {
+    const keys = this.cache.keys();
     this.cache.flushAll();
-    logger.info('Tenor cache cleared');
+    logger.info(`Tenor cache cleared: ${keys.length} keys`);
   }
   
   /**
    * Get cache stats
    */
   getCacheStats() {
-    return {
-      keys: this.cache.keys().length,
-      hits: this.cache.getStats().hits,
-      misses: this.cache.getStats().misses,
-      ksize: this.cache.getStats().ksize,
-      vsize: this.cache.getStats().vsize,
-    };
+    return this.cache.getStats();
   }
 }
 
