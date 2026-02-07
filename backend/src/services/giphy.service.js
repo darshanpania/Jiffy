@@ -1,137 +1,296 @@
-/**
- * GIPHY Service
- * Integration with GIPHY API for GIF search and retrieval
- */
-
 const axios = require('axios');
 const NodeCache = require('node-cache');
-const config = require('../config/config');
 const logger = require('../config/logger');
+const config = require('../config/config');
 
+/**
+ * GIPHY Service
+ * Handles GIPHY API integration with caching
+ */
 class GiphyService {
   constructor() {
     this.apiKey = config.giphy.apiKey;
-    this.baseUrl = config.giphy.baseUrl;
-    this.cache = new NodeCache({ stdTTL: config.cache.ttl });
+    this.baseUrl = 'https://api.giphy.com/v1/gifs';
     
-    if (!this.apiKey) {
-      logger.warn('GIPHY API key not configured');
-    }
+    // Cache with 10 minute TTL
+    this.cache = new NodeCache({
+      stdTTL: 600, // 10 minutes
+      checkperiod: 120, // Check for expired keys every 2 minutes
+      useClones: false,
+    });
+    
+    this.axiosInstance = axios.create({
+      baseURL: this.baseUrl,
+      timeout: 10000, // 10 second timeout
+      params: {
+        api_key: this.apiKey,
+      },
+    });
+    
+    logger.info('GIPHY service initialized');
+  }
+  
+  /**
+   * Generate cache key
+   */
+  getCacheKey(operation, params) {
+    const paramStr = JSON.stringify(params);
+    return `giphy:${operation}:${paramStr}`;
   }
   
   /**
    * Search GIFs
    */
-  async search(query, limit = 25, offset = 0) {
+  async search(query, limit = 25, offset = 0, rating = 'g') {
     try {
-      const cacheKey = `giphy:search:${query}:${limit}:${offset}`;
-      const cached = this.cache.get(cacheKey);
+      const cacheKey = this.getCacheKey('search', { query, limit, offset, rating });
       
+      // Check cache first
+      const cached = this.cache.get(cacheKey);
       if (cached) {
-        logger.debug('GIPHY search cache hit');
-        return cached;
+        logger.debug(`GIPHY cache hit: ${cacheKey}`);
+        return { success: true, data: cached, cached: true };
       }
       
-      const response = await axios.get(`${this.baseUrl}/gifs/search`, {
+      logger.debug(`GIPHY search: "${query}" limit=${limit} offset=${offset}`);
+      
+      const response = await this.axiosInstance.get('/search', {
         params: {
-          api_key: this.apiKey,
           q: query,
           limit,
           offset,
-          rating: config.giphy.ratingLimit,
+          rating,
           lang: 'en',
         },
       });
       
-      const gifs = response.data.data.map(this.mapGiphyGif);
+      const gifs = this.formatGifs(response.data.data);
+      const result = {
+        gifs,
+        pagination: response.data.pagination,
+        provider: 'giphy',
+      };
       
-      this.cache.set(cacheKey, gifs);
-      logger.info(`GIPHY search: "${query}" - ${gifs.length} results`);
+      // Cache result
+      this.cache.set(cacheKey, result);
       
-      return gifs;
+      logger.info(`GIPHY search: "${query}" → ${gifs.length} results`);
+      
+      return { success: true, data: result, cached: false };
     } catch (error) {
       logger.error('GIPHY search error:', error.message);
-      throw new Error('Failed to search GIPHY');
+      return {
+        success: false,
+        error: error.message,
+        provider: 'giphy',
+      };
     }
   }
   
   /**
    * Get trending GIFs
    */
-  async trending(limit = 25) {
+  async trending(limit = 25, offset = 0, rating = 'g') {
     try {
-      const cacheKey = `giphy:trending:${limit}`;
-      const cached = this.cache.get(cacheKey);
+      const cacheKey = this.getCacheKey('trending', { limit, offset, rating });
       
+      // Check cache
+      const cached = this.cache.get(cacheKey);
       if (cached) {
-        return cached;
+        logger.debug(`GIPHY trending cache hit`);
+        return { success: true, data: cached, cached: true };
       }
       
-      const response = await axios.get(`${this.baseUrl}/gifs/trending`, {
+      logger.debug(`GIPHY trending: limit=${limit}`);
+      
+      const response = await this.axiosInstance.get('/trending', {
         params: {
-          api_key: this.apiKey,
           limit,
-          rating: config.giphy.ratingLimit,
+          offset,
+          rating,
         },
       });
       
-      const gifs = response.data.data.map(this.mapGiphyGif);
+      const gifs = this.formatGifs(response.data.data);
+      const result = {
+        gifs,
+        pagination: response.data.pagination,
+        provider: 'giphy',
+      };
       
-      this.cache.set(cacheKey, gifs);
-      logger.info(`GIPHY trending: ${gifs.length} results`);
+      // Cache for 10 minutes
+      this.cache.set(cacheKey, result);
       
-      return gifs;
+      logger.info(`GIPHY trending → ${gifs.length} results`);
+      
+      return { success: true, data: result, cached: false };
     } catch (error) {
       logger.error('GIPHY trending error:', error.message);
-      throw new Error('Failed to get trending GIFs');
+      return {
+        success: false,
+        error: error.message,
+        provider: 'giphy',
+      };
     }
   }
   
   /**
    * Get GIF categories
    */
-  async getCategories() {
+  async getCategories(limit = 25, offset = 0) {
     try {
-      const cacheKey = 'giphy:categories';
-      const cached = this.cache.get(cacheKey);
+      const cacheKey = this.getCacheKey('categories', { limit, offset });
       
+      // Check cache
+      const cached = this.cache.get(cacheKey);
       if (cached) {
-        return cached;
+        logger.debug(`GIPHY categories cache hit`);
+        return { success: true, data: cached, cached: true };
       }
       
-      const response = await axios.get(`${this.baseUrl}/gifs/categories`, {
+      logger.debug(`GIPHY categories: limit=${limit}`);
+      
+      const response = await this.axiosInstance.get('/categories', {
         params: {
-          api_key: this.apiKey,
+          limit,
+          offset,
         },
       });
       
       const categories = response.data.data.map(cat => ({
         name: cat.name,
         nameEncoded: cat.name_encoded,
+        gif: cat.gif ? this.formatGif(cat.gif) : null,
       }));
       
-      this.cache.set(cacheKey, categories, 3600); // Cache for 1 hour
+      const result = {
+        categories,
+        pagination: response.data.pagination,
+        provider: 'giphy',
+      };
       
-      return categories;
+      // Cache for longer (30 minutes) - categories don't change often
+      this.cache.set(cacheKey, result, 1800);
+      
+      logger.info(`GIPHY categories → ${categories.length} results`);
+      
+      return { success: true, data: result, cached: false };
     } catch (error) {
       logger.error('GIPHY categories error:', error.message);
-      throw new Error('Failed to get categories');
+      return {
+        success: false,
+        error: error.message,
+        provider: 'giphy',
+      };
     }
   }
   
   /**
-   * Map GIPHY response to unified GIF format
+   * Get GIF by ID
    */
-  mapGiphyGif(gif) {
+  async getById(gifId) {
+    try {
+      const cacheKey = `giphy:gif:${gifId}`;
+      
+      const cached = this.cache.get(cacheKey);
+      if (cached) {
+        return { success: true, data: cached, cached: true };
+      }
+      
+      const response = await this.axiosInstance.get(`/${gifId}`);
+      
+      const gif = this.formatGif(response.data.data);
+      
+      // Cache for 1 hour
+      this.cache.set(cacheKey, gif, 3600);
+      
+      return { success: true, data: gif, cached: false };
+    } catch (error) {
+      logger.error('GIPHY getById error:', error.message);
+      return {
+        success: false,
+        error: error.message,
+        provider: 'giphy',
+      };
+    }
+  }
+  
+  /**
+   * Format single GIF to unified format
+   */
+  formatGif(gif) {
+    if (!gif) return null;
+    
     return {
       id: gif.id,
+      provider: 'giphy',
       title: gif.title || '',
-      url: gif.images.original.url,
-      previewUrl: gif.images.downsized?.url || gif.images.original.url,
-      thumbnailUrl: gif.images.fixed_width_small?.url || gif.images.original.url,
-      width: parseInt(gif.images.original.width, 10),
-      height: parseInt(gif.images.original.height, 10),
-      source: 'GIPHY',
+      url: gif.url,
+      embedUrl: gif.embed_url,
+      rating: gif.rating,
+      images: {
+        original: {
+          url: gif.images.original?.url,
+          width: parseInt(gif.images.original?.width || 0),
+          height: parseInt(gif.images.original?.height || 0),
+          size: parseInt(gif.images.original?.size || 0),
+        },
+        downsized: {
+          url: gif.images.downsized?.url,
+          width: parseInt(gif.images.downsized?.width || 0),
+          height: parseInt(gif.images.downsized?.height || 0),
+          size: parseInt(gif.images.downsized?.size || 0),
+        },
+        preview: {
+          url: gif.images.preview_gif?.url,
+          width: parseInt(gif.images.preview_gif?.width || 0),
+          height: parseInt(gif.images.preview_gif?.height || 0),
+        },
+        fixed_height: {
+          url: gif.images.fixed_height?.url,
+          width: parseInt(gif.images.fixed_height?.width || 0),
+          height: parseInt(gif.images.fixed_height?.height || 0),
+        },
+        fixed_width: {
+          url: gif.images.fixed_width?.url,
+          width: parseInt(gif.images.fixed_width?.width || 0),
+          height: parseInt(gif.images.fixed_width?.height || 0),
+        },
+      },
+      user: gif.user ? {
+        username: gif.user.username,
+        displayName: gif.user.display_name,
+        avatarUrl: gif.user.avatar_url,
+      } : null,
+    };
+  }
+  
+  /**
+   * Format multiple GIFs
+   */
+  formatGifs(gifs) {
+    if (!Array.isArray(gifs)) return [];
+    return gifs.map(gif => this.formatGif(gif)).filter(Boolean);
+  }
+  
+  /**
+   * Clear cache
+   */
+  clearCache() {
+    this.cache.flushAll();
+    logger.info('GIPHY cache cleared');
+  }
+  
+  /**
+   * Get cache stats
+   */
+  getCacheStats() {
+    return {
+      keys: this.cache.keys().length,
+      hits: this.cache.getStats().hits,
+      misses: this.cache.getStats().misses,
+      ksize: this.cache.getStats().ksize,
+      vsize: this.cache.getStats().vsize,
     };
   }
 }
