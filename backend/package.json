@@ -1,47 +1,53 @@
 {
   "name": "jiffy-backend",
   "version": "1.0.0",
-  "description": "JIFFY Backend API - Node.js/Express with Supabase",
+  "description": "JIFFY Backend API - Real-time messaging with GIF integration",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "test": "jest --coverage",
+    "test": "jest --coverage --runInBand",
+    "test:unit": "jest --testPathPattern=tests/unit --coverage",
+    "test:integration": "jest --testPathPattern=tests/integration --coverage --runInBand",
+    "test:e2e": "jest --testPathPattern=tests/e2e --coverage --runInBand",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage && open coverage/index.html",
     "lint": "eslint src/**/*.js",
-    "lint:fix": "eslint src/**/*.js --fix"
+    "lint:fix": "eslint src/**/*.js --fix",
+    "load:artillery": "artillery run tests/load/artillery.yml",
+    "load:k6": "k6 run tests/load/k6-test.js"
   },
   "keywords": [
-    "jiffy",
+    "messaging",
+    "chat",
     "gif",
-    "messenger",
+    "realtime",
     "supabase",
-    "express"
+    "firebase"
   ],
   "author": "Darshan Pania",
   "license": "MIT",
   "dependencies": {
-    "@supabase/supabase-js": "^2.39.3",
-    "express": "^4.18.2",
+    "@supabase/supabase-js": "^2.39.0",
+    "axios": "^1.6.2",
     "cors": "^2.8.5",
-    "helmet": "^7.1.0",
     "dotenv": "^16.3.1",
-    "morgan": "^1.10.0",
-    "winston": "^3.11.0",
+    "express": "^4.18.2",
     "express-rate-limit": "^7.1.5",
     "express-validator": "^7.0.1",
-    "axios": "^1.6.5",
     "firebase-admin": "^12.0.0",
+    "helmet": "^7.1.0",
+    "http-status-codes": "^2.3.0",
     "node-cache": "^5.1.2",
-    "compression": "^1.7.4",
-    "http-status-codes": "^2.3.0"
+    "posthog-node": "^4.0.0",
+    "winston": "^3.11.0"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2",
-    "jest": "^29.7.0",
-    "supertest": "^6.3.3",
+    "@types/jest": "^29.5.11",
     "eslint": "^8.56.0",
-    "eslint-config-airbnb-base": "^15.0.0",
-    "eslint-plugin-import": "^2.29.1"
+    "jest": "^29.7.0",
+    "nodemon": "^3.0.2",
+    "supertest": "^6.3.3"
   },
   "engines": {
     "node": ">=18.0.0",
