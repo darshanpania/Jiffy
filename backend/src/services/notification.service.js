@@ -1,16 +1,81 @@
-/**
- * Notification Service
- * Firebase Cloud Messaging (FCM) integration
- * Sends push notifications via FCM, manages tokens via Supabase
- */
-
 const admin = require('../config/firebase');
 const supabase = require('../config/supabase');
 const logger = require('../config/logger');
 
+/**
+ * Notification Service
+ * Handles FCM push notifications for messages, groups, and other events
+ */
 class NotificationService {
   /**
-   * Send notification to a single user
+   * Get FCM tokens for user from Supabase
+   */
+  async getUserTokens(userId) {
+    try {
+      const { data: devices, error } = await supabase
+        .from('user_devices')
+        .select('fcm_token')
+        .eq('user_id', userId)
+        .eq('notification_enabled', true);
+      
+      if (error) {
+        logger.error('Get user tokens error:', error);
+        return [];
+      }
+      
+      return devices.map(d => d.fcm_token).filter(Boolean);
+    } catch (error) {
+      logger.error('Get user tokens error:', error);
+      return [];
+    }
+  }
+  
+  /**
+   * Get FCM tokens for multiple users
+   */
+  async getMultipleUserTokens(userIds) {
+    try {
+      const { data: devices, error } = await supabase
+        .from('user_devices')
+        .select('fcm_token, user_id')
+        .in('user_id', userIds)
+        .eq('notification_enabled', true);
+      
+      if (error) {
+        logger.error('Get multiple user tokens error:', error);
+        return [];
+      }
+      
+      return devices.map(d => d.fcm_token).filter(Boolean);
+    } catch (error) {
+      logger.error('Get multiple user tokens error:', error);
+      return [];
+    }
+  }
+  
+  /**
+   * Check if chat is muted for user
+   */
+  async isChatMuted(userId, chatId) {
+    try {
+      const { data } = await supabase
+        .from('chat_notification_preferences')
+        .select('muted_until')
+        .eq('user_id', userId)
+        .eq('chat_id', chatId)
+        .maybeSingle();
+      
+      if (!data || !data.muted_until) return false;
+      
+      const mutedUntil = new Date(data.muted_until);
+      return mutedUntil > new Date();
+    } catch (error) {
+      return false; // If error, assume not muted
+    }
+  }
+  
+  /**
+   * Send notification to single user
    */
   async sendToUser(userId, title, body, data = {}) {
     try {
@@ -19,31 +84,14 @@ class NotificationService {
         return { success: false, error: 'FCM not configured' };
       }
       
-      // Get user's FCM tokens from Supabase
-      const { data: devices, error } = await supabase
-        .from('user_devices')
-        .select('fcm_token')
-        .eq('user_id', userId)
-        .eq('notification_enabled', true);
+      const tokens = await this.getUserTokens(userId);
       
-      if (error || !devices || devices.length === 0) {
-        logger.warn(`No FCM tokens found for user ${userId}`);
+      if (tokens.length === 0) {
+        logger.debug(`No FCM tokens found for user ${userId}`);
         return { success: false, error: 'No FCM tokens' };
       }
       
-      const tokens = devices.map(d => d.fcm_token).filter(Boolean);
-      
-      if (tokens.length === 0) {
-        return { success: false, error: 'No valid tokens' };
-      }
-      
-      // Send to all user's devices
       const result = await this.sendMulticast(tokens, title, body, data);
-      
-      // Remove invalid tokens
-      if (result.invalidTokens.length > 0) {
-        await this.removeInvalidTokens(result.invalidTokens);
-      }
       
       return {
         success: result.successCount > 0,
@@ -62,29 +110,17 @@ class NotificationService {
   async sendToMultipleUsers(userIds, title, body, data = {}) {
     try {
       if (!admin) {
-        return { success: false, successCount: 0, failureCount: userIds.length };
-      }
-      
-      // Get all FCM tokens for these users
-      const { data: devices, error } = await supabase
-        .from('user_devices')
-        .select('fcm_token')
-        .in('user_id', userIds)
-        .eq('notification_enabled', true);
-      
-      if (error || !devices || devices.length === 0) {
-        logger.warn('No FCM tokens found for users');
         return { successCount: 0, failureCount: userIds.length };
       }
       
-      const tokens = devices.map(d => d.fcm_token).filter(Boolean);
+      const tokens = await this.getMultipleUserTokens(userIds);
+      
+      if (tokens.length === 0) {
+        logger.debug('No FCM tokens found for users');
+        return { successCount: 0, failureCount: userIds.length };
+      }
       
       const result = await this.sendMulticast(tokens, title, body, data);
-      
-      // Remove invalid tokens
-      if (result.invalidTokens.length > 0) {
-        await this.removeInvalidTokens(result.invalidTokens);
-      }
       
       return {
         successCount: result.successCount,
@@ -98,17 +134,37 @@ class NotificationService {
   
   /**
    * Send message notification
+   * Called when new message is sent
    */
   async sendMessageNotifications(chatId, senderId, message) {
     try {
-      // Get chat participants (except sender)
-      const { data: participants, error } = await supabase
+      if (!admin) {
+        logger.debug('FCM not configured - skipping message notification');
+        return;
+      }
+      
+      // Get chat participants (excluding sender)
+      const { data: participants } = await supabase
         .from('chat_participants')
         .select('user_id')
         .eq('chat_id', chatId)
         .neq('user_id', senderId);
       
-      if (error || !participants || participants.length === 0) {
+      if (!participants || participants.length === 0) {
+        return;
+      }
+      
+      // Filter out users who muted this chat
+      const activeRecipients = [];
+      for (const p of participants) {
+        const isMuted = await this.isChatMuted(p.user_id, chatId);
+        if (!isMuted) {
+          activeRecipients.push(p.user_id);
+        }
+      }
+      
+      if (activeRecipients.length === 0) {
+        logger.debug('All recipients muted this chat');
         return;
       }
       
@@ -117,18 +173,25 @@ class NotificationService {
         .from('profiles')
         .select('display_name, photo_url')
         .eq('id', senderId)
-        .single();
+        .maybeSingle();
       
       // Get chat info
       const { data: chat } = await supabase
         .from('chat_rooms')
         .select('type, name')
         .eq('id', chatId)
-        .single();
+        .maybeSingle();
       
-      const userIds = participants.map(p => p.user_id);
-      const title = chat?.type === 'GROUP' ? chat.name : sender?.display_name || 'New Message';
-      const body = message.type === 'GIF' ? '🎬 Sent a GIF' : message.content;
+      // Prepare notification
+      const title = chat?.type === 'GROUP' 
+        ? chat.name 
+        : sender?.display_name || 'New Message';
+      
+      const body = message.type === 'GIF' 
+        ? '🎬 Sent a GIF' 
+        : message.type === 'IMAGE'
+        ? '📷 Sent an image'
+        : message.content.substring(0, 100);
       
       const notificationData = {
         type: 'message',
@@ -136,13 +199,26 @@ class NotificationService {
         sender_id: senderId,
         sender_name: sender?.display_name || 'User',
         sender_avatar: sender?.photo_url || '',
-        message_preview: body.substring(0, 100),
+        message_id: message.id,
         message_type: message.type,
+        message_preview: body,
+        timestamp: Date.now().toString(),
       };
       
-      await this.sendToMultipleUsers(userIds, title, body, notificationData);
+      // Send to all active recipients
+      const result = await this.sendToMultipleUsers(
+        activeRecipients,
+        title,
+        body,
+        notificationData
+      );
       
-      logger.info(`Message notifications sent for chat ${chatId}`);
+      logger.info('Message notifications sent:', {
+        chatId,
+        recipients: activeRecipients.length,
+        success: result.successCount,
+        failed: result.failureCount,
+      });
     } catch (error) {
       logger.error('Send message notifications error:', error);
       // Don't throw - notifications are non-critical
@@ -154,25 +230,38 @@ class NotificationService {
    */
   async sendGroupInviteNotifications(groupId, inviterId, memberIds) {
     try {
+      if (!admin) return;
+      
       const { data: group } = await supabase
         .from('chat_rooms')
-        .select('name')
+        .select('name, photo_url')
         .eq('id', groupId)
-        .single();
+        .maybeSingle();
       
       const { data: inviter } = await supabase
         .from('profiles')
         .select('display_name')
         .eq('id', inviterId)
-        .single();
+        .maybeSingle();
       
       const title = 'Group Invitation';
       const body = `${inviter?.display_name || 'Someone'} added you to ${group?.name || 'a group'}`;
       
-      await this.sendToMultipleUsers(memberIds, title, body, {
+      const data = {
         type: 'group_invite',
         group_id: groupId,
+        group_name: group?.name || '',
+        group_photo: group?.photo_url || '',
         inviter_id: inviterId,
+        inviter_name: inviter?.display_name || '',
+        timestamp: Date.now().toString(),
+      };
+      
+      await this.sendToMultipleUsers(memberIds, title, body, data);
+      
+      logger.info('Group invite notifications sent:', {
+        groupId,
+        recipients: memberIds.length,
       });
     } catch (error) {
       logger.error('Send group invite notifications error:', error);
@@ -180,32 +269,15 @@ class NotificationService {
   }
   
   /**
-   * Send notification to single device
-   */
-  async sendGroupInviteNotification(groupId, userId) {
-    try {
-      const { data: group } = await supabase
-        .from('chat_rooms')
-        .select('name')
-        .eq('id', groupId)
-        .single();
-      
-      await this.sendToUser(
-        userId,
-        'Added to Group',
-        `You were added to ${group?.name || 'a group'}`,
-        { type: 'group_invite', group_id: groupId }
-      );
-    } catch (error) {
-      logger.error('Send group invite notification error:', error);
-    }
-  }
-  
-  /**
-   * Send multicast notification via FCM
+   * Send multicast notification to multiple tokens
    */
   async sendMulticast(tokens, title, body, data = {}) {
     try {
+      if (!admin) {
+        logger.warn('FCM not configured');
+        return { successCount: 0, failureCount: tokens.length, invalidTokens: [] };
+      }
+      
       if (tokens.length === 0) {
         return { successCount: 0, failureCount: 0, invalidTokens: [] };
       }
@@ -217,13 +289,17 @@ class NotificationService {
         },
         data: {
           ...data,
-          timestamp: Date.now().toString(),
+          click_action: 'FLUTTER_NOTIFICATION_CLICK',
         },
         android: {
           priority: 'high',
           notification: {
             sound: 'default',
             channelId: data.type === 'message' ? 'messages' : 'general',
+            priority: 'high',
+            defaultSound: true,
+            defaultVibrateTimings: true,
+            color: '#6200EE',
           },
         },
         tokens,
@@ -231,9 +307,13 @@ class NotificationService {
       
       const response = await admin.messaging().sendEachForMulticast(message);
       
-      logger.info(`FCM sent: ${response.successCount} success, ${response.failureCount} failed`);
+      logger.info('FCM multicast sent:', {
+        total: tokens.length,
+        success: response.successCount,
+        failure: response.failureCount,
+      });
       
-      // Collect invalid tokens
+      // Collect invalid tokens for cleanup
       const invalidTokens = [];
       response.responses.forEach((resp, idx) => {
         if (!resp.success) {
@@ -246,6 +326,13 @@ class NotificationService {
           }
         }
       });
+      
+      // Cleanup invalid tokens asynchronously
+      if (invalidTokens.length > 0) {
+        this.removeInvalidTokens(invalidTokens).catch(err => {
+          logger.error('Failed to remove invalid tokens:', err);
+        });
+      }
       
       return {
         successCount: response.successCount,
